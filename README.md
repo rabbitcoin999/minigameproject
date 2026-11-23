@@ -4,7 +4,7 @@ A complete online mini-games platform where players register with a **Player ID 
 
 ## Features
 
-- 🎮 **Five fully playable games**: Snake, 2048, Memory Game, Reaction Test, Whack-a-Mole
+- 🎮 **Six fully playable games**: Snake, 2048, Memory Game, Reaction Test, Whack-a-Mole, Neon Runner
 - 🔐 **Custom Player ID authentication** — no email or Google account required
 - 🏆 **Global leaderboards** per game, with difficulty splits for Memory
 - 📊 **Player profiles & statistics** — personal bests, play counts, recent history

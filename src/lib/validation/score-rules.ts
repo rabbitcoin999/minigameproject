@@ -49,6 +49,16 @@ export const SCORE_RULES: Record<GameKey, ScoreRule> = {
     minDurationPerPoint: 80,
     description: 'Whack-a-Mole score from moles hit in 30 seconds.',
   },
+  runner: {
+    maxScore: 25_000,
+    minDurationPerPoint: 40,
+    description: 'Runner: score is distance survived in meters; ~33 ms per meter at max speed.',
+  },
+  'brick-blast': {
+    maxScore: 500_000, // Theoretical max across many levels
+    minDurationPerPoint: 50,
+    description: 'Brick Blast: score from destroying bricks across multiple levels.',
+  },
 }
 
 export interface ScoreValidationInput {

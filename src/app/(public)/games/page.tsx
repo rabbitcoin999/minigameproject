@@ -22,7 +22,9 @@ export default function GamesPage() {
                 ? `${(pb.completionTime / 1000).toFixed(1)}s (${pb.difficulty})`
                 : pb.gameKey === 'reaction'
                   ? `${pb.score} ms`
-                  : `${pb.score} pts`
+                  : pb.gameKey === 'runner'
+                    ? `${pb.score} m`
+                    : `${pb.score} pts`
           }
           setPersonalBests(map)
         }
@@ -36,7 +38,7 @@ export default function GamesPage() {
       <p className="mt-2 text-dark-400">
         Choose a game, set a record, and claim your spot on the leaderboard.
       </p>
-      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {GAMES.map((game) => (
           <GameCard key={game.key} game={game} personalBest={personalBests[game.key] ?? null} />
         ))}

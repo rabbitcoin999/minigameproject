@@ -87,6 +87,12 @@ export default function LeaderboardPage() {
     if (game.key === 'reaction') {
       return `${entry.score} ms`
     }
+    if (game.key === 'runner') {
+      return `${entry.score} m`
+    }
+    if (game.key === 'brick-blast') {
+      return `${entry.score} pts`
+    }
     return `${entry.score} pts`
   }
 

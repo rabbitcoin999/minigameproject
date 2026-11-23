@@ -65,6 +65,7 @@ function ProfileContent() {
   const formatBest = (pb: PersonalBestView): string => {
     if (pb.gameKey === 'memory') return `${((pb.completionTime ?? 0) / 1000).toFixed(2)}s`
     if (pb.gameKey === 'reaction') return `${pb.score} ms`
+    if (pb.gameKey === 'runner') return `${pb.score} m`
     return `${pb.score} pts`
   }
 
@@ -72,6 +73,7 @@ function ProfileContent() {
     if (s.game.gameKey === 'memory')
       return `${((s.completionTime ?? 0) / 1000).toFixed(2)}s`
     if (s.game.gameKey === 'reaction') return `${s.score} ms`
+    if (s.game.gameKey === 'runner') return `${s.score} m`
     return `${s.score} pts`
   }
 

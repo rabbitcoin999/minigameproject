@@ -6,6 +6,7 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
     './src/features/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/config/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
@@ -42,6 +43,7 @@ const config: Config = {
           memory: '#8b5cf6',
           reaction: '#ef4444',
           'whack-a-mole': '#ec4899',
+          runner: '#06b6d4',
         },
       },
       fontFamily: {

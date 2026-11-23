@@ -300,6 +300,425 @@ test('whack: pickCell returns null when grid is full', () => {
 })
 
 // ---------- Runner ----------
+import {
+  createInitialState as createRunnerState,
+  tick as tickRunner,
+  shiftLane,
+  queueJump,
+  speedAt,
+  formatDistance,
+  SPAWN_Z,
+  DESPAWN_Z,
+  COLLISION_HALF_Z,
+  LOW_HEIGHT,
+  TALL_HEIGHT,
+  BASE_SPEED,
+  MAX_SPEED,
+  RAMP_DISTANCE,
+  MIN_ROW_GAP_METERS,
+  SPAWN_JITTER,
+  LANE_WIDTH,
+  LANE_COUNT,
+  INITIAL_GRACE_METERS,
+  // types used for JSDoc annotations in tests:
+  // RunnerState, Lane, Obstacle
+} from '../src/features/runner/logic.ts'
+
+test('runner: initial state has correct defaults', () => {
+  const s = createRunnerState()
+  assert.equal(s.status, 'running')
+  assert.equal(s.lane, 1)
+  assert.equal(s.distance, 0)
+  assert.equal(s.speed, BASE_SPEED)
+  assert.equal(s.x, 0)
+  assert.equal(s.y, 0)
+  assert.equal(s.vy, 0)
+  assert.equal(s.jumpQueued, false)
+  assert.equal(s.obstacles.length, 0)
+  assert.equal(s.metersToNextRow, INITIAL_GRACE_METERS)
+  assert.equal(s.lastFreeLane, null)
+})
+
+test('runner: tick advances distance by speed * dt', () => {
+  let s = createRunnerState()
+  for (let i = 0; i < 60; i++) s = tickRunner(s)
+  // 60 ticks = 1s. Speed ramps from 12, so distance slightly > 12 (exact: ~12.07)
+  assert.ok(s.distance > 12 && s.distance < 12.2)
+  assert.equal(s.status, 'running')
+})
+
+test('runner: shiftLane clamps at edges', () => {
+  let s = createRunnerState()
+  // lane 1 -> left -> lane 0
+  s = shiftLane(s, -1)
+  assert.equal(s.lane, 0)
+  // left again -> still 0
+  s = shiftLane(s, -1)
+  assert.equal(s.lane, 0)
+  // right twice -> lane 2
+  s = shiftLane(s, 1)
+  s = shiftLane(s, 1)
+  assert.equal(s.lane, 2)
+  // right again -> still 2
+  s = shiftLane(s, 1)
+  assert.equal(s.lane, 2)
+})
+
+test('runner: lateral lerp moves x toward target lane', () => {
+  let s = createRunnerState()
+  s = shiftLane(s, -1) // target lane 0, x = -2
+  // x starts at 0, moves toward -2 at LATERAL_SPEED (12) * dt
+  for (let i = 0; i < 30; i++) s = tickRunner(s)
+  assert.ok(s.x < -1.9 && s.x > -2.1) // snapped close to -2
+})
+
+test('runner: jump arc peaks in expected range', () => {
+  let s = createRunnerState()
+  s = queueJump(s) // vy = 11.5
+  let maxY = 0
+  for (let i = 0; i < 60; i++) {
+    s = tickRunner(s)
+    if (s.y > maxY) maxY = s.y
+    if (s.y === 0 && s.vy === 0) break // landed
+  }
+  // apex = 11.5^2 / (2*38) ≈ 1.74
+  assert.ok(maxY > 1.6 && maxY < 1.9)
+})
+
+test('runner: queued jump executes on landing', () => {
+  let s = createRunnerState()
+  s = queueJump(s) // first jump - vy set immediately since grounded
+  // Wait for apex then land
+  for (let i = 0; i < 40; i++) s = tickRunner(s)
+  // Now player is grounded (y=0). Queue a jump *while airborne*:
+  s = queueJump(s) // grounded -> executes immediately, vy = JUMP_VELOCITY
+  assert.ok(s.vy > 0)
+  assert.equal(s.jumpQueued, false)
+  // To test queued jump, we need to queue WHILE airborne
+  // Do a jump, then before landing, queue another
+  s = createRunnerState()
+  s = queueJump(s) // jump 1
+  for (let i = 0; i < 20; i++) s = tickRunner(s) // still airborne
+  s = queueJump(s) // queue jump 2
+  assert.equal(s.jumpQueued, true)
+  // Land
+  for (let i = 0; i < 30; i++) s = tickRunner(s)
+  assert.equal(s.jumpQueued, false)
+  assert.ok(s.vy > 0)
+})
+
+test('runner: low obstacle kills grounded player, airborne survives', () => {
+  // Manually insert a low obstacle at collision zone
+  let s = createRunnerState()
+  const lowObs = {
+    id: 1,
+    lane: 1,
+    kind: 'low',
+    z: -0.5, // inside COLLISION_HALF_Z
+    x: 0,
+    width: 6.4,
+    depth: 1.2,
+    height: LOW_HEIGHT,
+  }
+  s = { ...s, obstacles: [lowObs], nextObstacleId: 2 }
+  // Grounded: y=0 < LOW_HEIGHT (0.8) → game over
+  s = tickRunner(s)
+  assert.equal(s.status, 'over')
+
+  // Reset with player airborne above LOW_HEIGHT
+  s = createRunnerState()
+  s = { ...s, obstacles: [lowObs], nextObstacleId: 2, y: 1.2, vy: 0 }
+  s = tickRunner(s)
+  assert.equal(s.status, 'running')
+})
+
+test('runner: tall obstacle kills even at jump height', () => {
+  let s = createRunnerState()
+  const tallObs = {
+    id: 1,
+    lane: 1,
+    kind: 'tall',
+    z: -0.5,
+    x: 0,
+    width: 1.6,
+    depth: 1.2,
+    height: TALL_HEIGHT,
+  }
+  // Player at y=1.2 (cleared low), tall is 2.2 → bottom 1.2 < 2.2 = collision
+  s = { ...s, obstacles: [tallObs], nextObstacleId: 2, y: 1.2, vy: 0 }
+  s = tickRunner(s)
+  assert.equal(s.status, 'over')
+})
+
+test('runner: obstacles despawn and list stays bounded', () => {
+  let s = createRunnerState()
+  // Simulate ~30s worth of ticks
+  for (let i = 0; i < 1800; i++) s = tickRunner(s)
+  // All obstacles beyond DESPAWN_Z should be removed
+  for (const o of s.obstacles) {
+    assert.ok(o.z <= DESPAWN_Z)
+  }
+  // List size bounded (approx: spawn rate * 30s max)
+  assert.ok(s.obstacles.length < 200)
+})
+
+test('runner: speedAt ramps monotonically and caps', () => {
+  assert.equal(speedAt(0), BASE_SPEED)
+  const mid = speedAt(RAMP_DISTANCE / 2)
+  assert.ok(mid > BASE_SPEED && mid < MAX_SPEED)
+  assert.equal(speedAt(RAMP_DISTANCE), MAX_SPEED)
+  assert.equal(speedAt(RAMP_DISTANCE * 2), MAX_SPEED)
+})
+
+test('runner: row gap floor enforced with jitter', () => {
+  let s = createRunnerState()
+  const rowDistances = []
+  let lastSpawnDistance = -1
+  // Simulate and record spawn events (dedup by distance)
+  for (let i = 0; i < 1000; i++) {
+    const prevLen = s.obstacles.length
+    s = tickRunner(s)
+    if (s.obstacles.length > prevLen && s.distance !== lastSpawnDistance) {
+      rowDistances.push(s.distance)
+      lastSpawnDistance = s.distance
+    }
+  }
+  // Check consecutive row distances respect MIN_ROW_GAP_METERS * (1 - JITTER)
+  for (let i = 1; i < rowDistances.length; i++) {
+    const gap = rowDistances[i] - rowDistances[i - 1]
+    const minGap = MIN_ROW_GAP_METERS * (1 - SPAWN_JITTER) - 0.01 // epsilon
+    assert.ok(gap >= minGap, `gap ${gap} < min ${minGap}`)
+  }
+})
+
+test('runner: solvability — never 3 tall in one row, consecutive doubles within 1 lane', () => {
+  let s = createRunnerState()
+  let prevFreeLane = null
+  for (let i = 0; i < 5000; i++) {
+    const prevLen = s.obstacles.length
+    s = tickRunner(s)
+    if (s.obstacles.length > prevLen) {
+      // New row spawned
+      const newOnes = s.obstacles.filter(o => o.z === SPAWN_Z && o.kind === 'tall')
+      assert.ok(newOnes.length <= 2, 'more than 2 tall obstacles in one row')
+      if (newOnes.length === 2) {
+        // Find the free lane
+        const usedLanes = newOnes.map(o => o.lane)
+        const freeLane = [0, 1, 2].find(l => !usedLanes.includes(l))
+        if (prevFreeLane !== null) {
+          assert.ok(Math.abs(freeLane - prevFreeLane) <= 1, 'double row free lane jumped >1')
+        }
+        prevFreeLane = freeLane
+      }
+    }
+  }
+})
+
+test('runner: formatDistance uses comma separator', () => {
+  assert.equal(formatDistance(0), '0 m')
+  assert.equal(formatDistance(123), '123 m')
+  assert.equal(formatDistance(1234), '1,234 m')
+  assert.equal(formatDistance(1234567), '1,234,567 m')
+})
+
+// ----------
+// ---------- Brick Blast ----------
+import {
+  createInitialState as createBrickBlastState,
+  tick as tickBrickBlast,
+  launchBall as launchBrickBlast,
+  updatePaddle as updateBrickBlastPaddle,
+  nextLevel as nextBrickBlastLevel,
+  restartGame as restartBrickBlast,
+  createLevelBricks as createBrickBlastBricks,
+  circleRectCollision as brickCircleRectCollision,
+  rectFromPos as brickRectFromPos,
+} from '../src/features/brick-blast/physics.ts'
+import {
+  GAME_WIDTH as BB_WIDTH,
+  GAME_HEIGHT as BB_HEIGHT,
+  BALL_RADIUS as BB_BALL_RADIUS,
+  INITIAL_PADDLE_WIDTH as BB_PADDLE_WIDTH,
+  INITIAL_LIVES as BB_INITIAL_LIVES,
+  LEVEL_CONFIGS as BB_LEVEL_CONFIGS,
+} from '../src/features/brick-blast/constants.ts'
+import { BRICK_CONFIGS as BB_BRICK_CONFIGS } from '../src/features/brick-blast/types.ts'
+
+test('brick-blast: initial state has correct defaults', () => {
+  const s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  assert.equal(s.phase, 'idle')
+  assert.equal(s.score, 0)
+  assert.equal(s.lives, BB_INITIAL_LIVES)
+  assert.equal(s.level, 1)
+  assert.equal(s.ball.launched, false)
+  assert.ok(s.ball.speed > 0)
+  assert.ok(s.paddle.width > 0)
+  assert.equal(s.bricks.length, 0) // bricks are created separately by createLevelBricks
+  assert.equal(s.canvasWidth, BB_WIDTH)
+  assert.equal(s.canvasHeight, BB_HEIGHT)
+})
+
+test('brick-blast: level 1 bricks are created', () => {
+  const s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  const bricks = createBrickBlastBricks(s, 1)
+  assert.ok(bricks.length > 0)
+  const destructible = bricks.filter(b => b.type !== 'unbreakable')
+  assert.ok(destructible.length > 0)
+  assert.ok(bricks.every(b => b.id >= 0))
+  assert.ok(bricks.every(b => b.hitsRemaining > 0 || b.type === 'unbreakable'))
+})
+
+test('brick-blast: brick configs are correct', () => {
+  assert.equal(BB_BRICK_CONFIGS.normal.hits, 1)
+  assert.equal(BB_BRICK_CONFIGS.hard.hits, 2)
+  assert.equal(BB_BRICK_CONFIGS.unbreakable.hits, -1)
+  assert.equal(BB_BRICK_CONFIGS.explosive.hits, 1)
+  assert.equal(BB_BRICK_CONFIGS.multiplier.hits, 1)
+
+  assert.equal(BB_BRICK_CONFIGS.normal.points, 10)
+  assert.equal(BB_BRICK_CONFIGS.hard.points, 25)
+  assert.equal(BB_BRICK_CONFIGS.explosive.points, 50)
+  assert.equal(BB_BRICK_CONFIGS.multiplier.points, 5)
+})
+
+test('brick-blast: ball launch works', () => {
+  const s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  const launched = launchBrickBlast(s)
+  assert.equal(launched.phase, 'playing')
+  assert.equal(launched.ball.launched, true)
+  assert.ok(launched.ball.velocity.x !== 0 || launched.ball.velocity.y !== 0)
+  assert.ok(launched.ball.velocity.y < 0) // upward
+})
+
+test('brick-blast: paddle update and clamping', () => {
+  const s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  const launched = launchBrickBlast(s)
+
+  const right = updateBrickBlastPaddle(launched, BB_WIDTH / 2 + 100, 1/60)
+  assert.ok(right.paddle.position.x > launched.paddle.position.x)
+
+  const left = updateBrickBlastPaddle(launched, BB_WIDTH / 2 - 100, 1/60)
+  assert.ok(left.paddle.position.x < launched.paddle.position.x)
+
+  const leftClamped = updateBrickBlastPaddle(launched, 0, 1/60)
+  const rightClamped = updateBrickBlastPaddle(launched, BB_WIDTH * 2, 1/60)
+  assert.ok(leftClamped.paddle.position.x > 0)
+  assert.ok(rightClamped.paddle.position.x < BB_WIDTH)
+})
+
+test('brick-blast: circle-rect collision detection', () => {
+  // Circle center inside rect - should hit with penetration
+  const center = { x: 92, y: 92 }
+  const radius = 10
+  const rect = { x: 90, y: 90, width: 20, height: 20 }
+
+  const hit = brickCircleRectCollision(center, radius, rect)
+  assert.equal(hit.hit, true)
+  assert.ok(hit.penetration > 0)
+
+  const far = { x: 200, y: 200 }
+  const miss = brickCircleRectCollision(far, radius, rect)
+  assert.equal(miss.hit, false)
+})
+
+test('brick-blast: tick advances ball', () => {
+  let s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+  const startY = s.ball.position.y
+  for (let i = 0; i < 10; i++) s = tickBrickBlast(s, 1/60)
+  assert.ok(s.ball.position.y < startY)
+})
+
+test('brick-blast: wall collisions reflect', () => {
+  let s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+
+  // Left wall
+  s = { ...s, ball: { ...s.ball, position: { x: s.ball.radius + 1, y: BB_HEIGHT / 2 }, velocity: { x: -100, y: 0 } } }
+  s = tickBrickBlast(s, 1/60)
+  assert.ok(s.ball.velocity.x > 0)
+
+  // Right wall
+  s = { ...s, ball: { ...s.ball, position: { x: BB_WIDTH - s.ball.radius - 1, y: BB_HEIGHT / 2 }, velocity: { x: 100, y: 0 } } }
+  s = tickBrickBlast(s, 1/60)
+  assert.ok(s.ball.velocity.x < 0)
+
+  // Top wall
+  s = { ...s, ball: { ...s.ball, position: { x: BB_WIDTH / 2, y: s.ball.radius + 1 }, velocity: { x: 0, y: -100 } } }
+  s = tickBrickBlast(s, 1/60)
+  assert.ok(s.ball.velocity.y > 0)
+})
+
+test('brick-blast: paddle collision reflects up', () => {
+  let s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+
+  s = {
+    ...s,
+    ball: {
+      ...s.ball,
+      position: { x: s.paddle.position.x, y: s.paddle.position.y - s.paddle.height / 2 - s.ball.radius - 1 },
+      velocity: { x: 0, y: 200 },
+    },
+  }
+  s = tickBrickBlast(s, 1/60)
+  assert.ok(s.ball.velocity.y < 0)
+})
+
+test('brick-blast: life loss and game over', () => {
+  let s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+
+  // Game over - 1 life
+  s = { ...s, ball: { ...s.ball, position: { x: BB_WIDTH / 2, y: BB_HEIGHT + s.ball.radius * 3 }, velocity: { x: 0, y: 200 } }, lives: 1 }
+  s = tickBrickBlast(s, 1/60)
+  assert.equal(s.lives, 0)
+  assert.equal(s.phase, 'gameOver')
+
+  // Continue with lives
+  s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+  s = { ...s, ball: { ...s.ball, position: { x: BB_WIDTH / 2, y: BB_HEIGHT + s.ball.radius * 3 }, velocity: { x: 0, y: 200 } }, lives: 3 }
+  s = tickBrickBlast(s, 1/60)
+  assert.equal(s.lives, 2)
+  assert.equal(s.phase, 'idle')
+  assert.equal(s.ball.launched, false)
+})
+
+test('brick-blast: level progression', () => {
+  let s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+  s = { ...s, bricks: [], phase: 'levelComplete' }
+  s = nextBrickBlastLevel(s)
+  assert.equal(s.level, 2)
+  assert.equal(s.phase, 'idle')
+  assert.ok(s.bricks.length > 0)
+  assert.equal(s.ball.launched, false)
+  assert.ok(s.ball.speed > 0)
+})
+
+test('brick-blast: game restart', () => {
+  let s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+  s = launchBrickBlast(s)
+  s = { ...s, phase: 'gameOver', score: 1000, lives: 0, level: 3 }
+  s = restartBrickBlast(s)
+  assert.equal(s.phase, 'idle')
+  assert.equal(s.score, 0)
+  assert.equal(s.lives, BB_INITIAL_LIVES)
+  assert.equal(s.level, 1)
+  assert.equal(s.ball.launched, false)
+})
+
+test('brick-blast: multiple levels have increasing difficulty', () => {
+  for (let i = 1; i <= BB_LEVEL_CONFIGS.length; i++) {
+    const s = createBrickBlastState(BB_WIDTH, BB_HEIGHT)
+    const bricks = createBrickBlastBricks({ ...s, level: i }, i)
+    const config = BB_LEVEL_CONFIGS[Math.min(i - 1, BB_LEVEL_CONFIGS.length - 1)]
+    assert.ok(bricks.length >= config.rows * config.cols * 0.8)
+  }
+})
+
+// ----------
 let passed = 0
 let failed = 0
 for (const { name, fn } of tests) {

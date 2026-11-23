@@ -41,7 +41,9 @@ export default function HomePage() {
                 ? `${(pb.completionTime / 1000).toFixed(1)}s (${pb.difficulty})`
                 : pb.gameKey === 'reaction'
                   ? `${pb.score} ms`
-                  : `${pb.score} pts`
+                  : pb.gameKey === 'runner'
+                    ? `${pb.score} m`
+                    : `${pb.score} pts`
           }
           setPersonalBests(map)
         }
@@ -60,7 +62,7 @@ export default function HomePage() {
           </span>
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-lg text-dark-400">
-          Five classic mini games, one account, global leaderboards. Your Player ID is all you need —
+          Six classic mini games, one account, global leaderboards. Your Player ID is all you need —
           no email required.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
@@ -89,7 +91,7 @@ export default function HomePage() {
             View all →
           </Link>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {GAMES.map((game) => (
             <GameCard key={game.key} game={game} personalBest={personalBests[game.key] ?? null} />
           ))}

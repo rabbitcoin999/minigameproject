@@ -80,6 +80,32 @@ export const GAMES: GameConfig[] = [
     lowerIsBetter: false,
     hasDifficulty: false,
   },
+  {
+    key: 'runner',
+    name: 'Neon Runner',
+    description: 'Dash down an endless neon track — dodge obstacles and jump barriers at full speed.',
+    icon: '🏃',
+    color: '#06b6d4',
+    gradient: 'from-cyan-500 to-blue-600',
+    path: '/games/runner',
+    scoreLabel: 'Distance',
+    scoreUnit: 'm',
+    lowerIsBetter: false,
+    hasDifficulty: false,
+  },
+  {
+    key: 'brick-blast',
+    name: 'Brick Blast',
+    description: 'Classic Breakout-style game — bounce the ball to destroy all bricks!',
+    icon: '🧱',
+    color: '#f59e0b',
+    gradient: 'from-amber-500 to-orange-600',
+    path: '/games/brick-blast',
+    scoreLabel: 'Score',
+    scoreUnit: 'pts',
+    lowerIsBetter: false,
+    hasDifficulty: false,
+  },
 ]
 
 export const GAME_KEYS: GameKey[] = GAMES.map((g) => g.key)
