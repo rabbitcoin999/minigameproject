@@ -509,7 +509,7 @@ export function BrickBlastGame() {
                 </div>
               </>
             )}
-            {phase === 'levelComplete' && (
+            {phase === 'levelComplete' && state && (
               <>
                 <p className="text-2xl font-bold text-green-400">Level Complete!</p>
                 <p className="mt-2 text-3xl font-bold text-white">{state.score} pts</p>
@@ -519,7 +519,7 @@ export function BrickBlastGame() {
                 </Button>
               </>
             )}
-            {phase === 'gameOver' && (
+            {phase === 'gameOver' && state && (
               <>
                 <p className="text-2xl font-bold text-red-400">Game Over!</p>
                 <p className="mt-2 text-4xl font-bold text-white">{state.score} pts</p>
