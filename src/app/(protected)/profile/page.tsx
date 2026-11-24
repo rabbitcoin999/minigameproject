@@ -8,6 +8,7 @@ import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { GAMES, getGameConfig } from '@/config/games'
 import type { PersonalBestView } from '@/types/api'
 import type { GameKey } from '@/types/game'
+import { formatLapTime } from '@/features/racing/format'
 
 interface HistoryScore {
   id: string
@@ -66,6 +67,7 @@ function ProfileContent() {
     if (pb.gameKey === 'memory') return `${((pb.completionTime ?? 0) / 1000).toFixed(2)}s`
     if (pb.gameKey === 'reaction') return `${pb.score} ms`
     if (pb.gameKey === 'runner') return `${pb.score} m`
+    if (pb.gameKey === 'racing') return formatLapTime(pb.score)
     return `${pb.score} pts`
   }
 
@@ -74,6 +76,7 @@ function ProfileContent() {
       return `${((s.completionTime ?? 0) / 1000).toFixed(2)}s`
     if (s.game.gameKey === 'reaction') return `${s.score} ms`
     if (s.game.gameKey === 'runner') return `${s.score} m`
+    if (s.game.gameKey === 'racing') return formatLapTime(s.score)
     return `${s.score} pts`
   }
 

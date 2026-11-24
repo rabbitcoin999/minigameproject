@@ -718,6 +718,26 @@ test('brick-blast: multiple levels have increasing difficulty', () => {
   }
 })
 
+// ---------- Racing ----------
+import { formatLapTime } from '../src/features/racing/format.ts'
+import { validateScoreRules } from '../src/lib/validation/score-rules.ts'
+
+test('racing: formatLapTime formats m:ss.mmm', () => {
+  assert.equal(formatLapTime(88900), '1:28.900')
+  assert.equal(formatLapTime(75007), '1:15.007')
+  assert.equal(formatLapTime(5), '0:00.005')
+  assert.equal(formatLapTime(600000), '10:00.000')
+})
+
+test('racing: score rules accept plausible laps and reject impossible ones', () => {
+  const base = { gameKey: 'racing', completionTime: null, difficulty: null }
+  assert.equal(validateScoreRules({ ...base, score: 88900, playDurationMs: 270000 }).valid, true)
+  assert.equal(validateScoreRules({ ...base, score: 88900, playDurationMs: null }).valid, true)
+  assert.equal(validateScoreRules({ ...base, score: 1200, playDurationMs: 270000 }).valid, false)
+  assert.equal(validateScoreRules({ ...base, score: 88900, playDurationMs: 60000 }).valid, false)
+  assert.equal(validateScoreRules({ ...base, score: 950000, playDurationMs: 2000000 }).valid, false)
+})
+
 // ----------
 let passed = 0
 let failed = 0

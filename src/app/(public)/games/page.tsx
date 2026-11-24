@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { GAMES } from '@/config/games'
 import { useAuth } from '@/features/auth/use-auth'
 import { GameCard } from '@/components/games/game-card'
+import { formatLapTime } from '@/features/racing/format'
 
 export default function GamesPage() {
   const { player } = useAuth()
@@ -24,7 +25,9 @@ export default function GamesPage() {
                   ? `${pb.score} ms`
                   : pb.gameKey === 'runner'
                     ? `${pb.score} m`
-                    : `${pb.score} pts`
+                    : pb.gameKey === 'racing'
+                      ? formatLapTime(pb.score)
+                      : `${pb.score} pts`
           }
           setPersonalBests(map)
         }

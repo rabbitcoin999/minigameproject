@@ -106,6 +106,19 @@ export const GAMES: GameConfig[] = [
     lowerIsBetter: false,
     hasDifficulty: false,
   },
+  {
+    key: 'racing',
+    name: 'Apex Racing',
+    description: '3D circuit racing against three AI drivers — drift, boost and chase the fastest lap.',
+    icon: '🏎️',
+    color: '#ef4444',
+    gradient: 'from-red-500 to-orange-600',
+    path: '/games/racing',
+    scoreLabel: 'Best Lap',
+    scoreUnit: '',
+    lowerIsBetter: true,
+    hasDifficulty: false,
+  },
 ]
 
 export const GAME_KEYS: GameKey[] = GAMES.map((g) => g.key)

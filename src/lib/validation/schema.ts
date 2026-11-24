@@ -31,7 +31,7 @@ export const loginSchema = z.object({
 
 // Score submission
 export const scoreSubmissionSchema = z.object({
-  gameKey: z.enum(['snake', '2048', 'memory', 'reaction', 'whack-a-mole', 'runner', 'brick-blast']),
+  gameKey: z.enum(['snake', '2048', 'memory', 'reaction', 'whack-a-mole', 'runner', 'brick-blast', 'racing']),
   score: z.number().int().min(0).max(10_000_000),
   completionTime: z.number().int().min(0).max(86_400_000).nullable().optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']).nullable().optional(),
