@@ -1,6 +1,6 @@
 // Game-related types
 
-export type GameKey = 'snake' | '2048' | 'memory' | 'reaction' | 'whack-a-mole' | 'runner' | 'brick-blast'
+export type GameKey = 'snake' | '2048' | 'memory' | 'reaction' | 'whack-a-mole' | 'runner' | 'brick-blast' | 'racing'
 
 export type Difficulty = 'easy' | 'medium' | 'hard'
 

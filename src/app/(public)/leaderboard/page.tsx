@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { GAMES, getGameConfig } from '@/config/games'
 import { useAuth } from '@/features/auth/use-auth'
 import type { Difficulty, GameKey } from '@/types/game'
+import { formatLapTime } from '@/features/racing/format'
 
 interface Entry {
   rank: number
@@ -86,6 +87,9 @@ export default function LeaderboardPage() {
     }
     if (game.key === 'reaction') {
       return `${entry.score} ms`
+    }
+    if (game.key === 'racing') {
+      return formatLapTime(entry.score)
     }
     if (game.key === 'runner') {
       return `${entry.score} m`

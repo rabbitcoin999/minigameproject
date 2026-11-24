@@ -7,6 +7,7 @@ import { Card, CardHeader, CardBody } from '@/components/ui/card'
 import { GAMES } from '@/config/games'
 import type { PersonalBestView } from '@/types/api'
 import type { GameKey } from '@/types/game'
+import { formatLapTime } from '@/features/racing/format'
 
 interface StatisticsData {
   stats: {
@@ -37,6 +38,7 @@ function formatBest(pb: PersonalBestView): string {
   if (pb.gameKey === 'memory') return `${((pb.completionTime ?? 0) / 1000).toFixed(2)}s`
   if (pb.gameKey === 'reaction') return `${pb.score} ms`
   if (pb.gameKey === 'runner') return `${pb.score} m`
+  if (pb.gameKey === 'racing') return formatLapTime(pb.score)
   return `${pb.score} pts`
 }
 
@@ -48,6 +50,7 @@ function formatRecent(s: {
   if (s.games.game_key === 'memory') return `${((s.completion_time ?? 0) / 1000).toFixed(2)}s`
   if (s.games.game_key === 'reaction') return `${s.score} ms`
   if (s.games.game_key === 'runner') return `${s.score} m`
+  if (s.games.game_key === 'racing') return formatLapTime(s.score)
   return `${s.score} pts`
 }
 
