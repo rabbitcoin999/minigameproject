@@ -328,9 +328,9 @@ const RunnerViewport = ({ onScoreChange, onSpeedChange, onGameOver, onAutoPause,
       const dt = dtRef.current
       const speed = state.speed
 
-      // Player position - smooth lateral follow
-      const targetX = (state.lane - 1) * 2 // LANE_WIDTH = 2
-      const playerX = playerGroup.position.x + (targetX - playerGroup.position.x) * 0.15
+      // Player position: use the simulated x directly so the model is always where the
+      // hitbox is (the logic already eases x toward the lane at LATERAL_SPEED).
+      const playerX = state.x
       playerGroup.position.x = playerX
 
       // Player vertical position
@@ -351,9 +351,12 @@ const RunnerViewport = ({ onScoreChange, onSpeedChange, onGameOver, onAutoPause,
       camera.lookAt(playerX * LOOK_AT_X_FACTOR, LOOK_AT_Y, LOOK_AT_Z)
 
       // Recycle track segments - world moves toward player (+z direction)
+      // Only scroll while the game is actually running, so the floor stops together with
+      // the obstacles on pause and game over.
+      const scrolling = runningRef.current && state.status === 'running'
       const totalLength = SEGMENT_COUNT * SEGMENT_LENGTH
       trackGroupsRef.current.forEach((group) => {
-        group.position.z += speed * (dt / 1000)
+        if (scrolling) group.position.z += speed * (dt / 1000)
         if (group.position.z > CAMERA_Z + SEGMENT_LENGTH / 2) {
           group.position.z -= totalLength
         }
