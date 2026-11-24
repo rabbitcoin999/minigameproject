@@ -1915,6 +1915,13 @@ function clearBanner() { $('banner').innerHTML = ''; }
 
 /* ---------- host integration (only when embedded with ?embed=1) ---------- */
 var EMBED = /[?&]embed=1\b/.test(location.search);
+function postBest() {
+  if (!EMBED || window.parent === window || !isFinite(pbTime)) return;
+  try { window.parent.postMessage({ source: 'apex-racing', type: 'best', bestLapMs: Math.round(pbTime * 1000) }, location.origin); } catch (e) { /* host not reachable */ }
+}
+if (EMBED) window.addEventListener('message', function (e) {
+  if (e.source === window.parent && e.origin === location.origin && e.data && e.data.type === 'apex-hello') postBest();
+});
 function postResult() {
   if (!EMBED || window.parent === window || !isFinite(player.best)) return;
   try {
@@ -1932,7 +1939,7 @@ function consumeEvents() {
     else if (e.type === 'bump') { if (e.a === player || e.b === player) { Sfx.bump(e.impact * 0.8); flashHit(); } }
     else if (e.type === 'lap' && e.racer === player) {
       var parts = '第 ' + e.lap + ' 圈 <b>' + fmt(e.time) + '</b>' + (e.best ? '　最快圈' : '');
-      if (e.time < pbTime) { pbTime = e.time; lsSet('apex.best', String(Math.round(e.time * 1000))); newPb = true; parts += '　新個人紀錄'; }
+      if (e.time < pbTime) { pbTime = e.time; lsSet('apex.best', String(Math.round(e.time * 1000))); newPb = true; parts += '　新個人紀錄'; postBest(); }
       if (e.lap < race.laps) { toast(e.lap === race.laps - 1 ? parts + '　最後一圈' : parts); Sfx.chime(e.best); }
     }
     else if (e.type === 'finish' && e.racer === player) {
@@ -2284,7 +2291,7 @@ function init() {
   BRAKE_ON = col(0xff3022); BRAKE_OFF = col(0x4a0a0a);
   initSkids();
   smoke = new Particles(520, false); scene.add(smoke.points); sparks = new Particles(320, true); scene.add(sparks.points);
-  prepMinimap(); loadSettings(); buildMenu(); refreshMenu(); syncSoundIcon();
+  prepMinimap(); loadSettings(); buildMenu(); refreshMenu(); syncSoundIcon(); postBest();
   setupRace(1e9);
   resize(); window.addEventListener('resize', resize);
 

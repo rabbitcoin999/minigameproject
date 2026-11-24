@@ -19,6 +19,17 @@ interface FinishMessage {
   rank: number
 }
 
+interface BestMessage {
+  source: 'apex-racing'
+  type: 'best'
+  bestLapMs: number
+}
+
+function isBestMessage(data: unknown): data is BestMessage {
+  const d = data as Partial<BestMessage> | null
+  return !!d && d.source === 'apex-racing' && d.type === 'best' && Number.isFinite(d.bestLapMs)
+}
+
 function isFinishMessage(data: unknown): data is FinishMessage {
   const d = data as Partial<FinishMessage> | null
   return (
@@ -34,6 +45,10 @@ type SaveState = 'saving' | 'saved' | 'error' | 'guest' | null
 
 export function RacingGame() {
   const frameRef = useRef<HTMLIFrameElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+  const [pseudoFull, setPseudoFull] = useState(false) // fallback where the Fullscreen API is missing (iPhone)
+  const [localBest, setLocalBest] = useState<number | null>(null) // best lap stored by the game itself
   const [last, setLast] = useState<FinishMessage | null>(null)
   const [best, setBest] = useState<number | null>(null)
   const [saveState, setSaveState] = useState<SaveState>(null)
@@ -52,6 +67,10 @@ export function RacingGame() {
       })
       .catch(() => {})
   }, [player])
+
+  const sayHello = useCallback(() => {
+    frameRef.current?.contentWindow?.postMessage({ type: 'apex-hello' }, window.location.origin)
+  }, [])
 
   const handleFinish = useCallback(
     (msg: FinishMessage) => {
@@ -79,11 +98,59 @@ export function RacingGame() {
       // Only accept results from our own embedded game page.
       if (e.origin !== window.location.origin) return
       if (e.source !== frameRef.current?.contentWindow) return
-      if (isFinishMessage(e.data)) handleFinish(e.data)
+      if (isBestMessage(e.data)) {
+        const lap = Math.round(e.data.bestLapMs)
+        setLocalBest((b) => (b === null || lap < b ? lap : b))
+      } else if (isFinishMessage(e.data)) handleFinish(e.data)
     }
     window.addEventListener('message', onMessage)
+    // The iframe may have announced its stored best before this listener existed: ask again.
+    sayHello()
     return () => window.removeEventListener('message', onMessage)
-  }, [handleFinish])
+  }, [handleFinish, sayHello])
+
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === stageRef.current)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  useEffect(() => {
+    if (!pseudoFull) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setPseudoFull(false)
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [pseudoFull])
+
+  const toggleFullscreen = useCallback(async () => {
+    const stage = stageRef.current
+    if (!stage) return
+    if (pseudoFull) {
+      setPseudoFull(false)
+      return
+    }
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {})
+      return
+    }
+    if (stage.requestFullscreen) {
+      try {
+        await stage.requestFullscreen()
+        frameRef.current?.focus()
+        return
+      } catch {
+        /* fall through to the in-page fullscreen */
+      }
+    }
+    setPseudoFull(true)
+  }, [pseudoFull])
+
+  // Best lap shown in the header: the better of the saved (server) and the game's own record.
+  const shownBest = best !== null && localBest !== null ? Math.min(best, localBest) : best ?? localBest
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -93,9 +160,9 @@ export function RacingGame() {
         </Link>
         <h1 className="text-2xl font-bold text-white">🏎️ Apex Racing</h1>
         <div className="text-right text-sm">
-          {best !== null ? (
+          {shownBest !== null ? (
             <span className="text-dark-400">
-              Best lap: <span className="font-bold text-primary-400">{formatLapTime(best)}</span>
+              Best lap: <span className="font-bold text-primary-400">{formatLapTime(shownBest)}</span>
             </span>
           ) : (
             <span className="text-dark-500">No best yet</span>
@@ -103,14 +170,42 @@ export function RacingGame() {
         </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-dark-800 bg-dark-950">
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="rounded-lg border border-dark-700 px-3 py-1.5 text-sm text-dark-300 hover:border-dark-500 hover:text-white"
+        >
+          ⛶ Full screen
+        </button>
+      </div>
+
+      <div
+        ref={stageRef}
+        className={
+          pseudoFull
+            ? 'fixed inset-0 z-50 bg-dark-950'
+            : 'mt-2 overflow-hidden rounded-xl border border-dark-800 bg-dark-950'
+        }
+      >
         <iframe
           ref={frameRef}
           src={GAME_SRC}
           title="Apex Racing"
           allow="autoplay; fullscreen"
-          className="block h-[75vh] min-h-[420px] w-full"
+          allowFullScreen
+          onLoad={sayHello}
+          className={fullscreen || pseudoFull ? 'block h-full w-full' : 'block h-[75vh] min-h-[420px] w-full'}
         />
+        {pseudoFull && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-dark-900/80 px-4 py-1.5 text-xs text-white backdrop-blur"
+          >
+            ✕ Exit full screen
+          </button>
+        )}
       </div>
 
       <div className="mt-4 min-h-[1.5rem] text-center text-sm">
