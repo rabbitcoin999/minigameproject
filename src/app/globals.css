@@ -38,3 +38,60 @@ body {
 .form-error {
   @apply mt-1 text-sm text-red-400;
 }
+
+/* ---------- Leaderboard shine sweep (top 3) ---------- */
+/* Usage: add `shine shine-gold|shine-silver|shine-bronze` to an element and
+   optionally set --shine-delay inline so rows don't sweep in sync. */
+.shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    var(--shine-color, rgba(255, 255, 255, 0.18)) 50%,
+    transparent 62%
+  );
+  transform: translateX(-100%);
+  animation: shine-sweep 4.5s ease-in-out infinite;
+  animation-delay: var(--shine-delay, 0.8s);
+}
+
+.shine-gold {
+  --shine-color: rgba(250, 204, 21, 0.28);
+}
+.shine-silver {
+  --shine-color: rgba(226, 232, 240, 0.24);
+}
+.shine-bronze {
+  --shine-color: rgba(217, 119, 6, 0.28);
+}
+
+/* The sweep takes ~30% of the cycle, then rests until the next loop */
+@keyframes shine-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  30%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-row-in,
+  .animate-page-in {
+    animation: none;
+  }
+  .shine::after {
+    animation: none;
+    display: none;
+  }
+}
