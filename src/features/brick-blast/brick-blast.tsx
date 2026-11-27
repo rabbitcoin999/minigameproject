@@ -132,7 +132,7 @@ export function BrickBlastGame() {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current)
     }
-  }, [phase, state])
+  }, [phase, state, play])
 
   // Render loop - draw to canvas
   useEffect(() => {
@@ -346,7 +346,7 @@ export function BrickBlastGame() {
 
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [phase, state])
+  }, [phase, state, play])
 
   // Mouse controls
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {

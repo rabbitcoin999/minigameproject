@@ -95,7 +95,7 @@ export function SnakeGame() {
       })
     }, TICK_MS)
     return () => clearInterval(interval)
-  }, [phase])
+  }, [phase, play])
 
   // Track elapsed time & submit score on game over
   useEffect(() => {

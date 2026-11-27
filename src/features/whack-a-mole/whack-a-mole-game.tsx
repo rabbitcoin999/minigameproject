@@ -106,7 +106,7 @@ export function WhackAMoleGame() {
 
     // Start spawning
     trySpawn()
-  }, [stopAll])
+  }, [stopAll, play])
 
   const hitMole = useCallback(
     (cell: number) => {
