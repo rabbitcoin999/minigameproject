@@ -353,7 +353,7 @@ var Core = (function () {
     brake: 22, engBrake: 2.4, reverseAccel: 5.5, reverseMax: 13,
     mu0: 1.45, df: 6.0e-5, rLow: 4.8,
     handGrip: 0.26, handDecel: 7.0,
-    boostAccel: 1.3, boostPower: 1.55, boostTime: 3.4, boostRecharge: 16, driftCharge: 6,
+    draftMax: 0.32, boostAccel: 1.3, boostPower: 1.55, boostTime: 3.4, boostRecharge: 16, driftCharge: 6,
     halfLen: 2.4, halfWid: 1.0, circleR: 1.15, circleOff: 1.15, inertia: 2.3
   };
   // grip, traction, rolling multiplier, extra constant drag, extra quadratic drag
@@ -508,27 +508,84 @@ var Core = (function () {
 
     track.vprof = speedProfile(track, 0.80, 15.0);
     var lt = 0; for (i = 0; i < N; i++) lt += ds / track.vprof[i];
-    track.idealLap = lt;
+    track.centreLap = lt;
+    buildRacingLine(track);
+    track.kAt = function (s) {
+      s = s % L; if (s < 0) s += L;
+      var f = s / ds, ii = Math.floor(f), t = f - ii; if (ii >= N) { ii = 0; t = 0; }
+      return kk[ii] + (kk[(ii + 1) % N] - kk[ii]) * t;
+    };
     return track;
   }
 
+  // Geometry (curvature, segment lengths) of the path offset d[i] from the centre line.
+  function lineGeometry(track, d) {
+    var N = track.N, qx = new Float64Array(N), qz = new Float64Array(N), yw = new Float64Array(N),
+      dsl = new Float64Array(N), kr = new Float64Array(N), k = new Float64Array(N), i, w;
+    for (i = 0; i < N; i++) { qx[i] = track.px[i] + track.nx[i] * d[i]; qz[i] = track.pz[i] + track.nz[i] * d[i]; }
+    for (i = 0; i < N; i++) {
+      var j = (i + 1) % N, dx = qx[j] - qx[i], dz = qz[j] - qz[i];
+      dsl[i] = Math.hypot(dx, dz) || 1e-3; yw[i] = Math.atan2(dx, dz);
+    }
+    for (i = 0; i < N; i++) { var p = (i + N - 1) % N; kr[i] = wrapPi(yw[i] - yw[p]) / (0.5 * (dsl[i] + dsl[p])); }
+    for (i = 0; i < N; i++) { var sum = 0; for (w = -2; w <= 2; w++) sum += kr[(i + w + N) % N]; k[i] = sum / 5; }
+    return { k: k, ds: dsl };
+  }
+
+  // Racing line: relax the path toward the straightest line that stays on the asphalt
+  // (outside-inside-outside falls out of it). Several relaxation scales are tried and the
+  // one that gives the quickest lap with the grip-limited speed profile wins.
+  function buildRacingLine(track) {
+    var N = track.N, lim = track.halfW - 2.4, best = null, windows = [3, 5, 8, 12, 18], wi, it, i, pass;
+    for (wi = 0; wi < windows.length; wi++) {
+      var m = windows[wi], d = new Float64Array(N);
+      for (it = 0; it < 600; it++) {
+        for (i = 0; i < N; i++) {
+          var a = (i - m + N) % N, b = (i + m) % N;
+          var mx = 0.5 * (track.px[a] + track.nx[a] * d[a] + track.px[b] + track.nx[b] * d[b]) - track.px[i];
+          var mz = 0.5 * (track.pz[a] + track.nz[a] * d[a] + track.pz[b] + track.nz[b] * d[b]) - track.pz[i];
+          var t = mx * track.nx[i] + mz * track.nz[i];
+          d[i] = clamp(d[i] + 0.5 * (t - d[i]), -lim, lim);
+        }
+      }
+      for (pass = 0; pass < 6; pass++) {            // remove any residual kinks
+        var d2 = new Float64Array(N);
+        for (i = 0; i < N; i++) d2[i] = 0.25 * d[(i + N - 1) % N] + 0.5 * d[i] + 0.25 * d[(i + 1) % N];
+        d = d2;
+      }
+      var g = lineGeometry(track, d), v = speedProfile(track, 0.80, 15.0, g.k, g.ds), time = 0;
+      for (i = 0; i < N; i++) time += g.ds[i] / v[i];
+      if (!best || time < best.time) best = { d: d, k: g.k, v: v, time: time, window: m };
+    }
+    track.lineD = best.d; track.lineK = best.k; track.lineV = best.v; track.idealLap = best.time; track.lineWindow = best.window;
+    function at(arr, s) {
+      var L = track.L; s = s % L; if (s < 0) s += L;
+      var f = s / track.ds, ii = Math.floor(f), t = f - ii; if (ii >= N) { ii = 0; t = 0; }
+      return arr[ii] + (arr[(ii + 1) % N] - arr[ii]) * t;
+    }
+    track.lineDAt = function (s) { return at(track.lineD, s); };
+    track.lineSpeedAt = function (s) { return at(track.lineV, s); };
+    track.lineKAt = function (s) { return Math.abs(at(track.lineK, s)); };
+  }
+
   // Corner-speed profile with braking/acceleration limits (used by AI drivers).
-  function speedProfile(track, gripFrac, brakeDecel) {
-    var N = track.N, ds = track.ds, v = new Float64Array(N), i, rep, VMAX = 82;
+  function speedProfile(track, gripFrac, brakeDecel, kArr, dsArr) {
+    var N = track.N, ds0 = track.ds, v = new Float64Array(N), i, rep, VMAX = 82, ds = ds0;
+    kArr = kArr || track.k;
     var a = P.df * G * gripFrac, b = P.mu0 * G * gripFrac;
     for (i = 0; i < N; i++) {
-      var kap = Math.abs(track.k[i]);
+      var kap = Math.abs(kArr[i]);
       v[i] = kap <= a ? VMAX : Math.min(VMAX, Math.sqrt(b / (kap - a)));
     }
     for (rep = 0; rep < 3; rep++) for (i = N - 1; i >= 0; i--) {
       var j = (i + 1) % N;
-      v[i] = Math.min(v[i], Math.sqrt(v[j] * v[j] + 2 * brakeDecel * ds));
+      v[i] = Math.min(v[i], Math.sqrt(v[j] * v[j] + 2 * brakeDecel * (dsArr ? dsArr[i] : ds0)));
     }
     for (rep = 0; rep < 3; rep++) for (i = 0; i < N; i++) {
       var j2 = (i + 1) % N, sp = Math.max(v[i], 3);
       var acc = Math.min(P.accelMax, P.power / sp) - P.drag * sp * sp - P.roll;
       acc = Math.max(acc, 0.3) * 0.9;
-      v[j2] = Math.min(v[j2], Math.sqrt(v[i] * v[i] + 2 * acc * ds));
+      v[j2] = Math.min(v[j2], Math.sqrt(v[i] * v[i] + 2 * acc * (dsArr ? dsArr[i] : ds0)));
     }
     return v;
   }
@@ -621,7 +678,7 @@ var Core = (function () {
     }
     var sgn = vF >= 0 ? 1 : -1, aRes = 0, avF = Math.abs(vF);
     var engB = (tEff < 0.05 && brake < 0.01 && avF > 2) ? P.engBrake * Math.min(1, avF / 20) : 0;
-    if (avF > 0.02) aRes = sgn * (P.drag * vF * vF + P.roll * sg.roll + sg.extra + sg.quad * vF * vF + engB);
+    if (avF > 0.02) aRes = sgn * (P.drag * (1 - P.draftMax * (car.draft || 0)) * vF * vF + P.roll * sg.roll + sg.extra + sg.quad * vF * vF + engB);
     var aNet = aEng - aRes - aBrk;
     var vF2 = vF + aNet * dt;
     if (vF > 0 && vF2 < 0 && aEng >= 0) vF2 = 0;
@@ -724,32 +781,60 @@ var Core = (function () {
   /* ------------------------------------------------------------------ *
    *  AI driver: pure pursuit on the centre line + speed profile
    * ------------------------------------------------------------------ */
-  function createAI(skill, baseLane) {
-    return { skill: skill, baseLane: baseLane || 0, lane: baseLane || 0, stuck: 0, _p: {} };
+  function createAI(skill, baseLane, seed) {
+    return {
+      skill: skill, baseLane: baseLane || 0, dev: baseLane || 0, stuck: 0, _p: {},
+      rng: mulberry32((seed | 0) * 2654435761 + 977), form: 1, lastS: null, run: 0,
+      err: 0, errMul: 1, errDev: 0, passing: false, pt: null, pside: 0
+    };
   }
 
+  function wrapDs(d, L) { return d > L / 2 ? d - L : (d < -L / 2 ? d + L : d); }
+
+  // Drives the racing line, attacks slower cars on the inside / the side with room,
+  // and makes the odd human-like mistake so positions really change during a race.
   function aiDrive(car, ai, track, others, dt) {
-    var loc = car.loc, v = Math.max(car.vF, 0), L = track.L, i;
-    // lane choice: pass slower cars on the side with room
-    var laneT = ai.baseLane, slowTo = 1e9, maxLane = track.halfW - 2.3;
+    var loc = car.loc, v = Math.max(car.vF, 0), L = track.L, i, rng = ai.rng;
+    var maxLane = track.halfW - 2.2;
+
+    if (ai.lastS !== null && loc.s < ai.lastS - L / 2) ai.form = 1 + (rng() - 0.5) * 0.06;   // new lap: pace varies +-3 %
+    ai.lastS = loc.s; ai.run += v * dt;
+    if (ai.err > 0) ai.err -= dt;
+    else if (ai.run > 200 && v > 25 && rng() < dt * (0.008 + 0.04 * Math.max(0, 1 - ai.skill))) {
+      ai.err = 1.0 + rng(); ai.errMul = rng() < 0.25 ? 0.72 : 0.88; ai.errDev = (rng() < 0.5 ? -1 : 1) * (0.8 + rng() * 1.2);
+    }
+
+    var lineNow = track.lineDAt(loc.s), devT = 0, slowTo = 1e9, bestDs = 1e9, hold = false, kAhead = track.kAt(loc.s + 30 + v * 0.6);
+    if (ai.run < 220) devT = ai.baseLane - lineNow;           // keep the grid slot through the start
+    ai.passing = false;
+    var target = null;
     for (i = 0; i < others.length; i++) {
       var o = others[i]; if (o === car) continue;
-      var dsO = o.loc.s - loc.s; if (dsO > L / 2) dsO -= L; else if (dsO < -L / 2) dsO += L;
-      var latO = o.loc.d - ai.lane;
-      if (dsO > 1 && dsO < 24 + v * 0.45 && Math.abs(latO) < 3.2) {
-        var wantLeft = ai.lane <= o.loc.d, tl = o.loc.d - 4.4, tr = o.loc.d + 4.4;
-        if (wantLeft && tl < -maxLane) wantLeft = false; else if (!wantLeft && tr > maxLane) wantLeft = true;
-        laneT = wantLeft ? Math.max(tl, -maxLane) : Math.min(tr, maxLane);
-        if (dsO < 9 + v * 0.12) slowTo = Math.min(slowTo, Math.max(o.vF, 0) + 1.5);
-      } else if (Math.abs(dsO) <= 5 && Math.abs(latO) < 3.4) {
-        laneT = ai.lane;
-      }
+      var dsO = wrapDs(o.loc.s - loc.s, L), latO = o.loc.d - loc.d;
+      if (dsO > 1 && dsO < 20 + v * 0.45 && Math.abs(latO) < 3.0) {
+        if (dsO < bestDs) { bestDs = dsO; target = o; }
+      } else if (Math.abs(dsO) <= 6 && Math.abs(latO) < 3.6) hold = true;
     }
-    ai.lane += clamp(laneT - ai.lane, -3.2 * dt, 3.2 * dt);
-    ai.lane = clamp(ai.lane, -maxLane, maxLane);
+    if (target) {
+      var o2 = target, latT = o2.loc.d - loc.d;
+      ai.passing = true;
+      if (ai.pt !== o2 || !ai.pside) {                        // commit to one side per pass
+        ai.pt = o2;
+        ai.pside = latT < -0.7 ? -1 : (latT > 0.7 ? 1 : (kAhead > 0.003 ? -1 : (kAhead < -0.003 ? 1 : (o2.loc.d > 0 ? -1 : 1))));
+        if (Math.abs(o2.loc.d + ai.pside * 3.6) > maxLane) ai.pside = -ai.pside;
+      }
+      var tl = clamp(o2.loc.d + ai.pside * 3.6, -maxLane, maxLane);
+      devT = tl - lineNow;
+      var close = bestDs < 8 + v * 0.1;
+      slowTo = (close && Math.abs(tl - o2.loc.d) < 2.6) ? Math.max(o2.vF, 0) + 1.0 : 1e9;
+      if (bestDs < 3.5 && Math.abs(latT) < 2.4) slowTo = Math.max(o2.vF, 0) - 1;
+    } else { ai.pt = null; ai.pside = 0; }
+    if (hold && !ai.passing) devT = ai.dev;
+    ai.dev += clamp(devT - ai.dev, -2.2 * dt, 2.2 * dt);
 
     var ld = clamp(8 + v * 0.5, 10, 55), p = ai._p;
-    track.pointAt(loc.s + ld, ai.lane, p);
+    var laneAbs = clamp(track.lineDAt(loc.s + ld) + ai.dev + (ai.err > 0 ? ai.errDev : 0), -maxLane, maxLane);
+    track.pointAt(loc.s + ld, laneAbs, p);
     var desired = Math.atan2(p.x - car.x, p.z - car.z), err = wrapPi(desired - car.yaw);
     var vv = Math.max(v, 4);
     var wNeed = 2 * vv * Math.sin(err) / Math.max(ld, 6);
@@ -760,7 +845,16 @@ var Core = (function () {
     if (Math.abs(err) > 1.0 && v < 8) steer = err > 0 ? 1 : -1;
     car.inSteer = steer;
 
-    var vt = track.speedAt(loc.s + v * 0.25 + 4) * ai.skill;
+    var vt = track.lineSpeedAt(loc.s + v * 0.25 + 4) * ai.skill * ai.form;
+    // a lane inside the racing line is tighter: slow down for its extra curvature
+    var dTot = ai.dev + (ai.err > 0 ? ai.errDev : 0), kfac = 1, sk2;
+    for (sk2 = 0; sk2 < 2; sk2++) {
+      var ss = loc.s + v * (0.25 + 0.5 * sk2) + 4 + 8 * sk2, kc = track.kAt(ss), d0 = track.lineDAt(ss),
+        dl = clamp(d0 + dTot, -maxLane, maxLane), kn = Math.abs(kc / (1 + kc * dl)), k0 = Math.abs(kc / (1 + kc * d0));
+      kfac = Math.min(kfac, Math.sqrt((k0 + 0.004) / (Math.max(kn, k0) + 0.004)));
+    }
+    vt *= kfac * (1 - Math.min(0.03, Math.abs(ai.dev) * 0.005));
+    if (ai.err > 0) vt *= ai.errMul;
     if (car.surface === 2) vt = Math.min(vt, 22);
     if (Math.abs(err) > 0.9) vt = Math.min(vt, 10);
     if (vt > slowTo) vt = slowTo;
@@ -768,10 +862,10 @@ var Core = (function () {
     car.inHand = 0;
     if (ev >= -0.8) { car.inThrottle = clamp(ev / 3, 0.0, 1); car.inBrake = 0; if (ev < 0) car.inThrottle = 0; }
     else { car.inThrottle = 0; car.inBrake = clamp((-ev - 0.8) / 6, 0, 1); }
-    car.inBoost = (car.boost > 0.55 && v > 38 && track.speedAt(loc.s + 160) > 60 && Math.abs(steer) < 0.15) ? 1 : 0;
+    car.inBoost = (car.boost > 0.55 && v > 38 && track.lineSpeedAt(loc.s + 160) > 60 && Math.abs(steer) < 0.15) ? 1 : 0;
 
     if (car.speed < 1.2 && car.inThrottle > 0.3) ai.stuck += dt; else ai.stuck = Math.max(0, ai.stuck - dt);
-    if (ai.stuck > 2.5) { ai.stuck = 0; resetCarOnTrack(car, track, loc.s, ai.baseLane, 0); }
+    if (ai.stuck > 2.5) { ai.stuck = 0; resetCarOnTrack(car, track, loc.s, track.lineDAt(loc.s), 0); ai.dev = 0; }
   }
 
   /* ------------------------------------------------------------------ *
@@ -792,7 +886,7 @@ var Core = (function () {
       resetCarOnTrack(car, track, mod(s, L), lane, 0);
       race.racers.push({
         id: idx, name: e.name, color: e.color, isPlayer: !!e.isPlayer, car: car,
-        ai: createAI(e.skill == null ? 0.9 : e.skill, lane * 0.5),
+        ai: createAI(e.skill == null ? 0.9 : e.skill, lane * 0.5, idx + (cfg.seed || 0) * 17),
         progress: s, lastS: car.loc.s, lapsDone: 0, lapStart: 0, lapTimes: [], best: Infinity,
         finished: false, finishTime: 0, rank: idx + 1, autopilot: false
       });
@@ -822,6 +916,15 @@ var Core = (function () {
         return;
       }
       race.time += dt;
+      for (i = 0; i < rs.length; i++) {
+        var ci = rs[i].car, dr = 0;
+        for (j = 0; j < rs.length; j++) {
+          if (i === j) continue;
+          var cj = rs[j].car, gap = cj.loc.s - ci.loc.s; if (gap > L / 2) gap -= L; else if (gap < -L / 2) gap += L;
+          if (gap > 4 && gap < 26 && Math.abs(cj.loc.d - ci.loc.d) < 2.2) dr = Math.max(dr, 1 - gap / 26);
+        }
+        ci.draft = dr;
+      }
       for (i = 0; i < rs.length; i++) {
         var r = rs[i];
         if (!r.isPlayer || r.autopilot) aiDrive(r.car, r.ai, track, race.cars, dt);
@@ -1742,14 +1845,14 @@ var LIVERIES = [
 ];
 var NUMBERS = [7, 14, 22, 33, 44, 55, 77];
 var DRIVERS = ['Kai 凱', 'Mika 美嘉', 'Orion 奧瑞', 'Nova 諾娃', 'Leo 里歐', 'Sora 空'];
-var DIFF = [{ name: '輕鬆', skills: [0.78, 0.82, 0.86] }, { name: '標準', skills: [0.88, 0.92, 0.96] }, { name: '激烈', skills: [0.97, 1.01, 1.05] }];
+var DIFF = [{ name: '輕鬆', skills: [0.74, 0.78, 0.82] }, { name: '標準', skills: [0.82, 0.86, 0.90] }, { name: '激烈', skills: [0.90, 0.94, 0.98] }];
 var CAM_NAMES = ['追尾視角', '遠景視角', '車內視角'];
 
 var track, race, player, visuals = [], modelCache = {};
 var state = 'menu', prevState = 'racing', resultUp = false, finishTimer = 0, finishPending = false;
 var settings = { color: 0, diff: 1, laps: 3 };
 var isTouch = false, debugMode = false;
-var pbTime = Infinity, sessionOffset = 0, newPb = false, goHideAt = 0, lastCountN = -1;
+var pbTime = Infinity, raceCount = Math.floor(Math.random() * 3), sessionOffset = 0, newPb = false, goHideAt = 0, lastCountN = -1;
 var smoke, sparks, fxc, fxCtx, qScale = 1, frameEma = 1 / 60, slowCount = 0, prCap = 2, BRAKE_ON, BRAKE_OFF;
 var cam = { mode: 0, yaw: 0, init: false, pos: new THREE.Vector3(), fov: 64, orbit: 0 };
 var acc = 0, lastT = 0, simTime = 0, prevWallHits = 0, wrongWayT = 0, stuckT = 0, hintShown = 0;
@@ -1789,9 +1892,10 @@ function setupRace(countdown) {
   var others = [], i;
   for (i = 0; i < LIVERIES.length; i++) if (i !== settings.color) others.push(i);
   var skills = DIFF[settings.diff].skills, entries = [];
-  for (i = 0; i < 3; i++) entries.push({ name: DRIVERS[(sessionOffset + i) % DRIVERS.length], color: others[(sessionOffset + i * 2) % others.length], skill: skills[2 - i], slot: i });
+  for (i = 0; i < 3; i++) entries.push({ name: DRIVERS[(sessionOffset + i) % DRIVERS.length], color: others[(sessionOffset + i * 2) % others.length], skill: skills[(i + raceCount) % 3], slot: i });
   entries.push({ name: '你', color: settings.color, isPlayer: true, slot: 3 });
-  race = Core.createRace(track, { laps: settings.laps, countdown: countdown, entries: entries });
+  race = Core.createRace(track, { laps: settings.laps, countdown: countdown, entries: entries, seed: raceCount * 7 + sessionOffset });
+  raceCount++;
   player = race.racers[3];
   race.racers.forEach(function (r) {
     var model = getModel(r.color); scene.add(model.root);
