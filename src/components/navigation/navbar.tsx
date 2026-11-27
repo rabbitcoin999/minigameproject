@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { useAuth } from '@/features/auth/use-auth'
 import { useSound } from '@/lib/sound/sound-context'
 import { useHoverSound } from '@/lib/sound/hover-sound'
+import { VolumeSlider } from '@/components/ui/volume-slider'
 import { GAMES } from '@/config/games'
 
 export function Navbar() {
@@ -74,8 +75,9 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <button
-            onClick={() => setMuted(!muted)}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMuted(!muted)}
             className="rounded-md p-2 text-dark-300 transition hover:bg-dark-800 hover:text-white"
             aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
             title={muted ? 'Unmute sound effects' : 'Mute sound effects'}
@@ -93,7 +95,9 @@ export function Navbar() {
                 <path d="M18.5 5.5a9 9 0 0 1 0 13" />
               </svg>
             )}
-          </button>
+            </button>
+            <VolumeSlider />
+          </div>
           {loading ? (
             <div className="h-8 w-24 animate-pulse rounded-md bg-dark-800" />
           ) : player ? (
