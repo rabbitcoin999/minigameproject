@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useAuth } from '@/features/auth/use-auth'
 import { useSound } from '@/lib/sound/sound-context'
+import { useHoverSound } from '@/lib/sound/hover-sound'
 import { GAMES } from '@/config/games'
 
 export function Navbar() {
   const { player, loading, logout } = useAuth()
   const { play, muted, setMuted } = useSound()
+  const hoverSound = useHoverSound()
   const [mobileOpen, setMobileOpen] = useState(false)
   const router = useRouter()
 
@@ -42,6 +44,7 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 onClick={() => play('click')}
+                onMouseEnter={hoverSound}
                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
               >
                 {link.label}
@@ -52,6 +55,7 @@ export function Navbar() {
                 <Link
                   href="/profile"
                   onClick={() => play('click')}
+                  onMouseEnter={hoverSound}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
                 >
                   Profile
@@ -59,6 +63,7 @@ export function Navbar() {
                 <Link
                   href="/statistics"
                   onClick={() => play('click')}
+                  onMouseEnter={hoverSound}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
                 >
                   Statistics

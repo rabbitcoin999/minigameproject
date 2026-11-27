@@ -2,6 +2,7 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useSound } from '@/lib/sound/sound-context'
+import { useHoverSound } from '@/lib/sound/hover-sound'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -34,6 +35,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const { play } = useSound()
+  const hoverSound = useHoverSound()
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!disabled) play('click')
@@ -44,6 +46,7 @@ export function Button({
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
       onClick={handleClick}
+      onMouseEnter={hoverSound}
       disabled={disabled}
       {...props}
     >
