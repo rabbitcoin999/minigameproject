@@ -274,7 +274,7 @@ body.touch .hud-tr .board { display: none; }
         <div class="opt"><label id="lblColor">車色</label><div class="swatches" id="swatches" role="radiogroup" aria-labelledby="lblColor"></div></div>
         <div class="opt"><label id="lblDiff">對手強度</label>
           <div class="seg" id="segDiff" role="radiogroup" aria-labelledby="lblDiff">
-            <button type="button" role="radio" data-v="0" aria-checked="false">輕鬆</button><button type="button" role="radio" data-v="1" aria-checked="true">標準</button><button type="button" role="radio" data-v="2" aria-checked="false">激烈</button>
+            <button type="button" role="radio" data-v="0" aria-checked="false">輕鬆</button><button type="button" role="radio" data-v="1" aria-checked="true">標準</button><button type="button" role="radio" data-v="2" aria-checked="false">激烈</button><button type="button" role="radio" data-v="3" aria-checked="false">終極</button>
           </div></div>
         <div class="opt"><label id="lblLaps">圈數</label>
           <div class="seg" id="segLaps" role="radiogroup" aria-labelledby="lblLaps">
@@ -781,11 +781,11 @@ var Core = (function () {
   /* ------------------------------------------------------------------ *
    *  AI driver: pure pursuit on the centre line + speed profile
    * ------------------------------------------------------------------ */
-  function createAI(skill, baseLane, seed) {
+  function createAI(skill, baseLane, seed, perfect) {
     return {
       skill: skill, baseLane: baseLane || 0, dev: baseLane || 0, stuck: 0, _p: {},
       rng: mulberry32((seed | 0) * 2654435761 + 977), form: 1, lastS: null, run: 0,
-      err: 0, errMul: 1, errDev: 0, passing: false, pt: null, pside: 0
+      err: 0, errMul: 1, errDev: 0, passing: false, pt: null, pside: 0, perfect: !!perfect
     };
   }
 
@@ -797,10 +797,10 @@ var Core = (function () {
     var loc = car.loc, v = Math.max(car.vF, 0), L = track.L, i, rng = ai.rng;
     var maxLane = track.halfW - 2.2;
 
-    if (ai.lastS !== null && loc.s < ai.lastS - L / 2) ai.form = 1 + (rng() - 0.5) * 0.06;   // new lap: pace varies +-3 %
+    if (ai.lastS !== null && loc.s < ai.lastS - L / 2) ai.form = ai.perfect ? 1 : 1 + (rng() - 0.5) * 0.06;   // new lap: pace varies +-3 %
     ai.lastS = loc.s; ai.run += v * dt;
     if (ai.err > 0) ai.err -= dt;
-    else if (ai.run > 200 && v > 25 && rng() < dt * (0.008 + 0.04 * Math.max(0, 1 - ai.skill))) {
+    else if (!ai.perfect && ai.run > 200 && v > 25 && rng() < dt * (0.008 + 0.04 * Math.max(0, 1 - ai.skill))) {
       ai.err = 1.0 + rng(); ai.errMul = rng() < 0.25 ? 0.72 : 0.88; ai.errDev = (rng() < 0.5 ? -1 : 1) * (0.8 + rng() * 1.2);
     }
 
@@ -886,7 +886,7 @@ var Core = (function () {
       resetCarOnTrack(car, track, mod(s, L), lane, 0);
       race.racers.push({
         id: idx, name: e.name, color: e.color, isPlayer: !!e.isPlayer, car: car,
-        ai: createAI(e.skill == null ? 0.9 : e.skill, lane * 0.5, idx + (cfg.seed || 0) * 17),
+        ai: createAI(e.skill == null ? 0.9 : e.skill, lane * 0.5, idx + (cfg.seed || 0) * 17, cfg.perfect),
         progress: s, lastS: car.loc.s, lapsDone: 0, lapStart: 0, lapTimes: [], best: Infinity,
         finished: false, finishTime: 0, rank: idx + 1, autopilot: false
       });
@@ -1845,7 +1845,7 @@ var LIVERIES = [
 ];
 var NUMBERS = [7, 14, 22, 33, 44, 55, 77];
 var DRIVERS = ['Kai 凱', 'Mika 美嘉', 'Orion 奧瑞', 'Nova 諾娃', 'Leo 里歐', 'Sora 空'];
-var DIFF = [{ name: '輕鬆', skills: [0.74, 0.78, 0.82] }, { name: '標準', skills: [0.82, 0.86, 0.90] }, { name: '激烈', skills: [0.90, 0.94, 0.98] }];
+var DIFF = [{ name: '輕鬆', skills: [0.74, 0.78, 0.82] }, { name: '標準', skills: [0.82, 0.86, 0.90] }, { name: '激烈', skills: [0.90, 0.94, 0.98] }, { name: '終極', skills: [1.00, 1.03, 1.06], perfect: true }];
 var CAM_NAMES = ['追尾視角', '遠景視角', '車內視角'];
 
 var track, race, player, visuals = [], modelCache = {};
@@ -1874,7 +1874,7 @@ function loadSettings() {
   try {
     var c = JSON.parse(lsGet('apex.cfg') || '{}');
     if (typeof c.color === 'number' && c.color >= 0 && c.color < 5) settings.color = c.color;
-    if (typeof c.diff === 'number' && c.diff >= 0 && c.diff < 3) settings.diff = c.diff;
+    if (typeof c.diff === 'number' && c.diff >= 0 && c.diff < 4) settings.diff = c.diff;
     if ([1, 3, 5].indexOf(c.laps) >= 0) settings.laps = c.laps;
     if (c.mute) Sfx.setMuted(true);
   } catch (e) { /* defaults */ }
@@ -1894,7 +1894,7 @@ function setupRace(countdown) {
   var skills = DIFF[settings.diff].skills, entries = [];
   for (i = 0; i < 3; i++) entries.push({ name: DRIVERS[(sessionOffset + i) % DRIVERS.length], color: others[(sessionOffset + i * 2) % others.length], skill: skills[(i + raceCount) % 3], slot: i });
   entries.push({ name: '你', color: settings.color, isPlayer: true, slot: 3 });
-  race = Core.createRace(track, { laps: settings.laps, countdown: countdown, entries: entries, seed: raceCount * 7 + sessionOffset });
+  race = Core.createRace(track, { laps: settings.laps, countdown: countdown, entries: entries, seed: raceCount * 7 + sessionOffset, perfect: !!DIFF[settings.diff].perfect });
   raceCount++;
   player = race.racers[3];
   race.racers.forEach(function (r) {
