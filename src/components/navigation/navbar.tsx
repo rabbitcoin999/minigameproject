@@ -41,6 +41,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={() => play('click')}
                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
               >
                 {link.label}
@@ -50,12 +51,14 @@ export function Navbar() {
               <>
                 <Link
                   href="/profile"
+                  onClick={() => play('click')}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
                 >
                   Profile
                 </Link>
                 <Link
                   href="/statistics"
+                  onClick={() => play('click')}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
                 >
                   Statistics
@@ -141,7 +144,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => { play('click'); setMobileOpen(false) }}
                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
               >
                 {link.label}
@@ -151,14 +154,14 @@ export function Navbar() {
               <>
                 <Link
                   href="/profile"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => { play('click'); setMobileOpen(false) }}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
                 >
                   Profile
                 </Link>
                 <Link
                   href="/statistics"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => { play('click'); setMobileOpen(false) }}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
                 >
                   Statistics
