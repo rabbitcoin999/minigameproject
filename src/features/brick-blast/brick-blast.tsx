@@ -18,6 +18,7 @@ import type { BrickBlastState, GamePhase } from './types'
 import { GAME_WIDTH, GAME_HEIGHT } from './constants.ts'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 type Phase = GamePhase
@@ -37,6 +38,7 @@ export function BrickBlastGame() {
   const elapsedRef = useRef<number>(0)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
   const submittedRef = useRef(false)
 
   // Initialize canvas and game state
@@ -107,8 +109,16 @@ export function BrickBlastGame() {
         if (!prev) return prev
         const next = tick(prev, dt)
 
+        // Score change → brick hit sound
+        if (next.score > prev.score) {
+          play('score')
+          if (next.combo > 1) play('combo')
+        }
+
         // Check for phase changes
         if (next.phase !== prev.phase) {
+          if (next.phase === 'levelComplete') play('levelUp')
+          else if (next.phase === 'gameOver') play('gameOver')
           setPhase(next.phase)
         }
 
@@ -309,12 +319,16 @@ export function BrickBlastGame() {
           setPhase('playing')
         } else if (phase === 'playing') {
           setPhase('paused')
+          play('pause')
         } else if (phase === 'paused') {
           setPhase('playing')
         }
       } else if (key === 'p' || key === 'escape') {
         e.preventDefault()
-        if (phase === 'playing') setPhase('paused')
+        if (phase === 'playing') {
+          setPhase('paused')
+          play('pause')
+        }
         else if (phase === 'paused') setPhase('playing')
       } else if (key === 'r') {
         e.preventDefault()
@@ -378,11 +392,15 @@ export function BrickBlastGame() {
     if (!state) return
     setState(prev => prev ? launchBall(prev) : prev)
     setPhase('playing')
-  }, [state])
+    play('start')
+  }, [state, play])
 
   const handlePause = useCallback(() => {
-    if (phase === 'playing') setPhase('paused')
-  }, [phase])
+    if (phase === 'playing') {
+      setPhase('paused')
+      play('pause')
+    }
+  }, [phase, play])
 
   const handleResume = useCallback(() => {
     if (phase === 'paused') setPhase('playing')

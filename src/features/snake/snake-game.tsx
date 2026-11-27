@@ -13,6 +13,7 @@ import {
 } from './logic'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 type GamePhase = 'idle' | 'running' | 'paused' | 'over'
@@ -28,6 +29,7 @@ export function SnakeGame() {
   const elapsedRef = useRef<number>(0)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
 
   // Load personal best
   useEffect(() => {
@@ -84,7 +86,9 @@ export function SnakeGame() {
         if (s.gameOver) return s
         directionRef.current = pendingDirRef.current
         const next = tick({ ...s, direction: directionRef.current })
+        if (next.score > s.score) play('score')
         if (next.gameOver) {
+          play('gameOver')
           setPhase('over')
         }
         return next
@@ -134,11 +138,14 @@ export function SnakeGame() {
     elapsedRef.current = 0
     setSaveState(null)
     setPhase('running')
-  }, [])
+    play('start')
+  }, [play])
 
   const togglePause = () => {
-    if (phase === 'running') setPhase('paused')
-    else if (phase === 'paused') setPhase('running')
+    if (phase === 'running') {
+      setPhase('paused')
+      play('pause')
+    } else if (phase === 'paused') setPhase('running')
   }
 
   const cellSize = 100 / GRID_SIZE

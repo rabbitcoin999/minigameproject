@@ -15,6 +15,7 @@ import {
 } from './logic'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 type Phase = 'idle' | 'playing' | 'over'
@@ -35,6 +36,7 @@ export function WhackAMoleGame() {
   const lastDifficultyCheckRef = useRef<number>(0)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
 
   useEffect(() => {
     if (!player) {
@@ -69,6 +71,7 @@ export function WhackAMoleGame() {
     startRef.current = Date.now()
     nextSpawnGapRef.current = 700
     lastDifficultyCheckRef.current = 0
+    play('start')
 
     // Timer countdown
     timerRef.current = setInterval(() => {
@@ -77,6 +80,7 @@ export function WhackAMoleGame() {
       setTimeLeftMs(remaining)
       if (remaining <= 0) {
         stopAll()
+        play('gameOver')
         setPhase('over')
       }
     }, 50)
@@ -115,6 +119,8 @@ export function WhackAMoleGame() {
         const mole = current[moleIdx]
         const points = mole.isBonus ? BONUS_POINTS : NORMAL_POINTS
         setScore((s) => s + points)
+        play('score')
+        if (mole.isBonus) play('combo')
         setFlash({ cell, hit: true })
 
         // Remove this mole
@@ -126,7 +132,7 @@ export function WhackAMoleGame() {
       // Clear flash
       setTimeout(() => setFlash(null), 120)
     },
-    [phase]
+    [phase, play]
   )
 
   const missMole = useCallback(

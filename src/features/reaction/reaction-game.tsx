@@ -12,6 +12,7 @@ import {
 } from './logic'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 export function ReactionGame() {
@@ -26,6 +27,7 @@ export function ReactionGame() {
   const clickAtRef = useRef<number>(0)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
 
   useEffect(() => {
     if (!player) {
@@ -53,17 +55,19 @@ export function ReactionGame() {
     setPhase('waiting')
     timeoutRef.current = setTimeout(() => {
       readyAtRef.current = performance.now()
+      play('score') // "go!" cue — the screen turning green
       setPhase('ready')
     }, randomDelay())
-  }, [])
+  }, [play])
 
   const startGame = useCallback(() => {
     setRoundTimes([])
     setRound(1)
     setLastTime(null)
     setSaveState(null)
+    play('start')
     startRound()
-  }, [startRound])
+  }, [startRound, play])
 
   const finishGame = useCallback(
     (times: number[]) => {
@@ -95,6 +99,7 @@ export function ReactionGame() {
     if (phase === 'waiting') {
       // False start!
       clearTimer()
+      play('error')
       setPhase('false-start')
       return
     }
@@ -103,6 +108,7 @@ export function ReactionGame() {
       const reactionMs = Math.round(performance.now() - readyAtRef.current)
       if (reactionMs < IMPOSSIBLE_THRESHOLD_MS) {
         // Bot-like click — discard round and retry
+        play('error')
         setPhase('false-start')
         return
       }
