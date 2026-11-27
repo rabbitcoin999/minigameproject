@@ -1,4 +1,7 @@
+'use client'
+
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useSound } from '@/lib/sound/sound-context'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
@@ -25,12 +28,23 @@ export function Button({
   variant = 'primary',
   size = 'md',
   className = '',
+  onClick,
+  disabled,
   children,
   ...props
 }: ButtonProps) {
+  const { play } = useSound()
+
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!disabled) play('click')
+    onClick?.(e)
+  }
+
   return (
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      onClick={handleClick}
+      disabled={disabled}
       {...props}
     >
       {children}
