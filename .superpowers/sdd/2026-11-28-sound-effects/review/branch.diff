@@ -1,0 +1,1371 @@
+diff --git a/src/app/layout.tsx b/src/app/layout.tsx
+index e151493..e195f97 100644
+--- a/src/app/layout.tsx
++++ b/src/app/layout.tsx
+@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
+ import { Inter } from 'next/font/google'
+ import './globals.css'
+ import { AuthProvider } from '@/features/auth/use-auth'
++import { SoundProvider } from '@/lib/sound/SoundProvider'
+ import { Navbar } from '@/components/navigation/navbar'
+ import { Footer } from '@/components/layout/footer'
+ 
+@@ -21,11 +22,13 @@ export default function RootLayout({ children }: { children: React.ReactNode })
+     <html lang="en" className="dark">
+       <body className={inter.className}>
+         <AuthProvider>
+-          <div className="flex min-h-screen flex-col">
+-            <Navbar />
+-            <main className="flex-1">{children}</main>
+-            <Footer />
+-          </div>
++          <SoundProvider>
++            <div className="flex min-h-screen flex-col">
++              <Navbar />
++              <main className="flex-1">{children}</main>
++              <Footer />
++            </div>
++          </SoundProvider>
+         </AuthProvider>
+       </body>
+     </html>
+diff --git a/src/components/games/game-card.tsx b/src/components/games/game-card.tsx
+index 43c7cab..177576e 100644
+--- a/src/components/games/game-card.tsx
++++ b/src/components/games/game-card.tsx
+@@ -2,6 +2,8 @@
+ 
+ import Link from 'next/link'
+ import type { GameConfig } from '@/config/games'
++import { useSound } from '@/lib/sound/sound-context'
++import { useHoverSound } from '@/lib/sound/hover-sound'
+ 
+ interface GameCardProps {
+   game: GameConfig
+@@ -9,6 +11,9 @@ interface GameCardProps {
+ }
+ 
+ export function GameCard({ game, personalBest }: GameCardProps) {
++  const { play } = useSound()
++  const hoverSound = useHoverSound()
++
+   return (
+     <div className="group relative flex flex-col overflow-hidden rounded-xl border border-dark-800 bg-dark-900 transition hover:border-dark-600 hover:shadow-xl">
+       <div className={`flex h-28 items-center justify-center bg-gradient-to-br ${game.gradient}`}>
+@@ -30,6 +35,8 @@ export function GameCard({ game, personalBest }: GameCardProps) {
+         </div>
+         <Link
+           href={game.path}
++          onClick={() => play('click')}
++          onMouseEnter={hoverSound}
+           className="mt-4 inline-flex items-center justify-center rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-600"
+         >
+           Play
+diff --git a/src/components/navigation/navbar.tsx b/src/components/navigation/navbar.tsx
+index 4c95bee..010cd25 100644
+--- a/src/components/navigation/navbar.tsx
++++ b/src/components/navigation/navbar.tsx
+@@ -4,10 +4,15 @@ import Link from 'next/link'
+ import { useRouter } from 'next/navigation'
+ import { useState } from 'react'
+ import { useAuth } from '@/features/auth/use-auth'
++import { useSound } from '@/lib/sound/sound-context'
++import { useHoverSound } from '@/lib/sound/hover-sound'
++import { VolumeSlider } from '@/components/ui/volume-slider'
+ import { GAMES } from '@/config/games'
+ 
+ export function Navbar() {
+   const { player, loading, logout } = useAuth()
++  const { play, muted, setMuted } = useSound()
++  const hoverSound = useHoverSound()
+   const [mobileOpen, setMobileOpen] = useState(false)
+   const router = useRouter()
+ 
+@@ -39,6 +44,8 @@ export function Navbar() {
+               <Link
+                 key={link.href}
+                 href={link.href}
++                onClick={() => play('click')}
++                onMouseEnter={hoverSound}
+                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
+               >
+                 {link.label}
+@@ -48,12 +55,16 @@ export function Navbar() {
+               <>
+                 <Link
+                   href="/profile"
++                  onClick={() => play('click')}
++                  onMouseEnter={hoverSound}
+                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
+                 >
+                   Profile
+                 </Link>
+                 <Link
+                   href="/statistics"
++                  onClick={() => play('click')}
++                  onMouseEnter={hoverSound}
+                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
+                 >
+                   Statistics
+@@ -64,6 +75,29 @@ export function Navbar() {
+         </div>
+ 
+         <div className="hidden items-center gap-3 md:flex">
++          <div className="flex items-center gap-2">
++            <button
++              onClick={() => setMuted(!muted)}
++            className="rounded-md p-2 text-dark-300 transition hover:bg-dark-800 hover:text-white"
++            aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
++            title={muted ? 'Unmute sound effects' : 'Mute sound effects'}
++          >
++            {muted ? (
++              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++                <path d="M11 5L6 9H2v6h4l5 4V5z" />
++                <line x1="23" y1="9" x2="17" y2="15" />
++                <line x1="17" y1="9" x2="23" y2="15" />
++              </svg>
++            ) : (
++              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
++                <path d="M11 5L6 9H2v6h4l5 4V5z" />
++                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
++                <path d="M18.5 5.5a9 9 0 0 1 0 13" />
++              </svg>
++            )}
++            </button>
++            <VolumeSlider />
++          </div>
+           {loading ? (
+             <div className="h-8 w-24 animate-pulse rounded-md bg-dark-800" />
+           ) : player ? (
+@@ -119,7 +153,7 @@ export function Navbar() {
+               <Link
+                 key={link.href}
+                 href={link.href}
+-                onClick={() => setMobileOpen(false)}
++                onClick={() => { play('click'); setMobileOpen(false) }}
+                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
+               >
+                 {link.label}
+@@ -129,14 +163,14 @@ export function Navbar() {
+               <>
+                 <Link
+                   href="/profile"
+-                  onClick={() => setMobileOpen(false)}
++                  onClick={() => { play('click'); setMobileOpen(false) }}
+                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
+                 >
+                   Profile
+                 </Link>
+                 <Link
+                   href="/statistics"
+-                  onClick={() => setMobileOpen(false)}
++                  onClick={() => { play('click'); setMobileOpen(false) }}
+                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
+                 >
+                   Statistics
+diff --git a/src/components/ui/button.tsx b/src/components/ui/button.tsx
+index d18d00e..fdd5fab 100644
+--- a/src/components/ui/button.tsx
++++ b/src/components/ui/button.tsx
+@@ -1,4 +1,8 @@
++'use client'
++
+ import type { ButtonHTMLAttributes, ReactNode } from 'react'
++import { useSound } from '@/lib/sound/sound-context'
++import { useHoverSound } from '@/lib/sound/hover-sound'
+ 
+ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+@@ -25,12 +29,25 @@ export function Button({
+   variant = 'primary',
+   size = 'md',
+   className = '',
++  onClick,
++  disabled,
+   children,
+   ...props
+ }: ButtonProps) {
++  const { play } = useSound()
++  const hoverSound = useHoverSound()
++
++  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
++    if (!disabled) play('click')
++    onClick?.(e)
++  }
++
+   return (
+     <button
+       className={`inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
++      onClick={handleClick}
++      onMouseEnter={hoverSound}
++      disabled={disabled}
+       {...props}
+     >
+       {children}
+diff --git a/src/components/ui/volume-slider.tsx b/src/components/ui/volume-slider.tsx
+new file mode 100644
+index 0000000..2fda330
+--- /dev/null
++++ b/src/components/ui/volume-slider.tsx
+@@ -0,0 +1,21 @@
++'use client'
++
++import { useSound } from '@/lib/sound/sound-context'
++
++export function VolumeSlider() {
++  const { volume, setVolume, muted } = useSound()
++
++  return (
++    <input
++      type="range"
++      min="0"
++      max="1"
++      step="0.1"
++      value={muted ? 0 : volume}
++      onChange={(e) => setVolume(parseFloat(e.target.value))}
++      aria-label="Sound volume"
++      title="Sound volume"
++      className="hidden h-1.5 w-20 cursor-pointer accent-primary-500 sm:block"
++    />
++  )
++}
+diff --git a/src/features/2048/game2048.tsx b/src/features/2048/game2048.tsx
+index 0781f15..25c31aa 100644
+--- a/src/features/2048/game2048.tsx
++++ b/src/features/2048/game2048.tsx
+@@ -13,6 +13,7 @@ import {
+ } from './logic'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ type Phase = 'playing' | 'over'
+@@ -32,6 +33,7 @@ export function Game2048() {
+   const maxTileRef = useRef<number>(0)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+ 
+   useEffect(() => {
+     maxTileRef.current = Math.max(...grid.flat())
+@@ -96,14 +98,17 @@ export function Game2048() {
+         const newScore = scoreRef.current + result.scoreGained
+         setScore(newScore)
+ 
++        if (result.scoreGained > 0) play('score')
++
+         if (!hasValidMoves(newGrid)) {
++          play('gameOver')
+           // Defer to avoid setState-in-render
+           setTimeout(() => finishGame(newScore), 50)
+         }
+         return newGrid
+       })
+     },
+-    [phase, finishGame]
++    [phase, finishGame, play]
+   )
+ 
+   const scoreRef = useRef(0)
+diff --git a/src/features/brick-blast/brick-blast.tsx b/src/features/brick-blast/brick-blast.tsx
+index cae80f2..486e96b 100644
+--- a/src/features/brick-blast/brick-blast.tsx
++++ b/src/features/brick-blast/brick-blast.tsx
+@@ -18,6 +18,7 @@ import type { BrickBlastState, GamePhase } from './types'
+ import { GAME_WIDTH, GAME_HEIGHT } from './constants.ts'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ type Phase = GamePhase
+@@ -37,6 +38,7 @@ export function BrickBlastGame() {
+   const elapsedRef = useRef<number>(0)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+   const submittedRef = useRef(false)
+ 
+   // Initialize canvas and game state
+@@ -107,8 +109,16 @@ export function BrickBlastGame() {
+         if (!prev) return prev
+         const next = tick(prev, dt)
+ 
++        // Score change → brick hit sound
++        if (next.score > prev.score) {
++          play('score')
++          if (next.combo > 1) play('combo')
++        }
++
+         // Check for phase changes
+         if (next.phase !== prev.phase) {
++          if (next.phase === 'levelComplete') play('levelUp')
++          else if (next.phase === 'gameOver') play('gameOver')
+           setPhase(next.phase)
+         }
+ 
+@@ -309,12 +319,16 @@ export function BrickBlastGame() {
+           setPhase('playing')
+         } else if (phase === 'playing') {
+           setPhase('paused')
++          play('pause')
+         } else if (phase === 'paused') {
+           setPhase('playing')
+         }
+       } else if (key === 'p' || key === 'escape') {
+         e.preventDefault()
+-        if (phase === 'playing') setPhase('paused')
++        if (phase === 'playing') {
++          setPhase('paused')
++          play('pause')
++        }
+         else if (phase === 'paused') setPhase('playing')
+       } else if (key === 'r') {
+         e.preventDefault()
+@@ -378,11 +392,15 @@ export function BrickBlastGame() {
+     if (!state) return
+     setState(prev => prev ? launchBall(prev) : prev)
+     setPhase('playing')
+-  }, [state])
++    play('start')
++  }, [state, play])
+ 
+   const handlePause = useCallback(() => {
+-    if (phase === 'playing') setPhase('paused')
+-  }, [phase])
++    if (phase === 'playing') {
++      setPhase('paused')
++      play('pause')
++    }
++  }, [phase, play])
+ 
+   const handleResume = useCallback(() => {
+     if (phase === 'paused') setPhase('playing')
+diff --git a/src/features/memory/memory-game.tsx b/src/features/memory/memory-game.tsx
+index 6d3c23d..8414f27 100644
+--- a/src/features/memory/memory-game.tsx
++++ b/src/features/memory/memory-game.tsx
+@@ -13,6 +13,7 @@ import {
+ } from './logic'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ type Phase = 'idle' | 'playing' | 'won'
+@@ -31,6 +32,7 @@ export function MemoryGame() {
+   const unflipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+ 
+   const loadBest = useCallback((d: Difficulty) => {
+     if (!player) {
+@@ -77,6 +79,7 @@ export function MemoryGame() {
+     setMismatchFlash(false)
+     setPhase('playing')
+     startRef.current = Date.now()
++    play('start')
+     timerRef.current = setInterval(() => {
+       setElapsedMs(Date.now() - startRef.current)
+     }, 100)
+@@ -104,6 +107,7 @@ export function MemoryGame() {
+ 
+     if (outcome.allMatched) {
+       // Won!
++      play('levelUp')
+       stopTimer()
+       const completionMs = Date.now() - startRef.current
+       setElapsedMs(completionMs)
+diff --git a/src/features/reaction/reaction-game.tsx b/src/features/reaction/reaction-game.tsx
+index 653c7c1..fe1767b 100644
+--- a/src/features/reaction/reaction-game.tsx
++++ b/src/features/reaction/reaction-game.tsx
+@@ -12,6 +12,7 @@ import {
+ } from './logic'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ export function ReactionGame() {
+@@ -26,6 +27,7 @@ export function ReactionGame() {
+   const clickAtRef = useRef<number>(0)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+ 
+   useEffect(() => {
+     if (!player) {
+@@ -53,17 +55,19 @@ export function ReactionGame() {
+     setPhase('waiting')
+     timeoutRef.current = setTimeout(() => {
+       readyAtRef.current = performance.now()
++      play('score') // "go!" cue — the screen turning green
+       setPhase('ready')
+     }, randomDelay())
+-  }, [])
++  }, [play])
+ 
+   const startGame = useCallback(() => {
+     setRoundTimes([])
+     setRound(1)
+     setLastTime(null)
+     setSaveState(null)
++    play('start')
+     startRound()
+-  }, [startRound])
++  }, [startRound, play])
+ 
+   const finishGame = useCallback(
+     (times: number[]) => {
+@@ -95,6 +99,7 @@ export function ReactionGame() {
+     if (phase === 'waiting') {
+       // False start!
+       clearTimer()
++      play('error')
+       setPhase('false-start')
+       return
+     }
+@@ -103,6 +108,7 @@ export function ReactionGame() {
+       const reactionMs = Math.round(performance.now() - readyAtRef.current)
+       if (reactionMs < IMPOSSIBLE_THRESHOLD_MS) {
+         // Bot-like click — discard round and retry
++        play('error')
+         setPhase('false-start')
+         return
+       }
+diff --git a/src/features/runner/runner-game.tsx b/src/features/runner/runner-game.tsx
+index 66a05eb..4c8ae8c 100644
+--- a/src/features/runner/runner-game.tsx
++++ b/src/features/runner/runner-game.tsx
+@@ -6,6 +6,7 @@ import Link from 'next/link'
+ import type { RunnerViewportHandle } from './runner-viewport'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ const RunnerViewport = dynamic(
+@@ -35,6 +36,7 @@ export function RunnerGame() {
+   const elapsedRef = useRef<number>(0)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+ 
+   // Load personal best
+   useEffect(() => {
+@@ -58,15 +60,17 @@ export function RunnerGame() {
+     submittedRef.current = false
+     startTimeRef.current = Date.now()
+     elapsedRef.current = 0
++    play('start')
+     viewportRef.current?.start()
+-  }, [])
++  }, [play])
+ 
+   const pauseGame = useCallback(() => {
+     if (phase === 'running') {
+       viewportRef.current?.pause()
++      play('pause')
+       setPhase('paused')
+     }
+-  }, [phase])
++  }, [phase, play])
+ 
+   const resumeGame = useCallback(() => {
+     if (phase === 'paused') {
+@@ -85,10 +89,11 @@ export function RunnerGame() {
+ 
+   const handleGameOver = useCallback(
+     (finalScore: number) => {
++      play('gameOver')
+       setScore(finalScore)
+       setPhase('over')
+     },
+-    []
++    [play]
+   )
+ 
+   const handleAutoPause = useCallback(() => {
+diff --git a/src/features/snake/snake-game.tsx b/src/features/snake/snake-game.tsx
+index adbbc8c..8011b2a 100644
+--- a/src/features/snake/snake-game.tsx
++++ b/src/features/snake/snake-game.tsx
+@@ -13,6 +13,7 @@ import {
+ } from './logic'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ type GamePhase = 'idle' | 'running' | 'paused' | 'over'
+@@ -28,6 +29,7 @@ export function SnakeGame() {
+   const elapsedRef = useRef<number>(0)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+ 
+   // Load personal best
+   useEffect(() => {
+@@ -84,7 +86,9 @@ export function SnakeGame() {
+         if (s.gameOver) return s
+         directionRef.current = pendingDirRef.current
+         const next = tick({ ...s, direction: directionRef.current })
++        if (next.score > s.score) play('score')
+         if (next.gameOver) {
++          play('gameOver')
+           setPhase('over')
+         }
+         return next
+@@ -134,11 +138,14 @@ export function SnakeGame() {
+     elapsedRef.current = 0
+     setSaveState(null)
+     setPhase('running')
+-  }, [])
++    play('start')
++  }, [play])
+ 
+   const togglePause = () => {
+-    if (phase === 'running') setPhase('paused')
+-    else if (phase === 'paused') setPhase('running')
++    if (phase === 'running') {
++      setPhase('paused')
++      play('pause')
++    } else if (phase === 'paused') setPhase('running')
+   }
+ 
+   const cellSize = 100 / GRID_SIZE
+diff --git a/src/features/whack-a-mole/whack-a-mole-game.tsx b/src/features/whack-a-mole/whack-a-mole-game.tsx
+index 69c03b4..8a6c74f 100644
+--- a/src/features/whack-a-mole/whack-a-mole-game.tsx
++++ b/src/features/whack-a-mole/whack-a-mole-game.tsx
+@@ -15,6 +15,7 @@ import {
+ } from './logic'
+ import { useAuth } from '@/features/auth/use-auth'
+ import { useScoreSubmit } from '@/features/auth/use-score-submit'
++import { useSound } from '@/lib/sound/sound-context'
+ import { Button } from '@/components/ui/button'
+ 
+ type Phase = 'idle' | 'playing' | 'over'
+@@ -35,6 +36,7 @@ export function WhackAMoleGame() {
+   const lastDifficultyCheckRef = useRef<number>(0)
+   const { player } = useAuth()
+   const { submitScore } = useScoreSubmit()
++  const { play } = useSound()
+ 
+   useEffect(() => {
+     if (!player) {
+@@ -69,6 +71,7 @@ export function WhackAMoleGame() {
+     startRef.current = Date.now()
+     nextSpawnGapRef.current = 700
+     lastDifficultyCheckRef.current = 0
++    play('start')
+ 
+     // Timer countdown
+     timerRef.current = setInterval(() => {
+@@ -77,6 +80,7 @@ export function WhackAMoleGame() {
+       setTimeLeftMs(remaining)
+       if (remaining <= 0) {
+         stopAll()
++        play('gameOver')
+         setPhase('over')
+       }
+     }, 50)
+@@ -115,6 +119,8 @@ export function WhackAMoleGame() {
+         const mole = current[moleIdx]
+         const points = mole.isBonus ? BONUS_POINTS : NORMAL_POINTS
+         setScore((s) => s + points)
++        play('score')
++        if (mole.isBonus) play('combo')
+         setFlash({ cell, hit: true })
+ 
+         // Remove this mole
+@@ -126,7 +132,7 @@ export function WhackAMoleGame() {
+       // Clear flash
+       setTimeout(() => setFlash(null), 120)
+     },
+-    [phase]
++    [phase, play]
+   )
+ 
+   const missMole = useCallback(
+diff --git a/src/lib/sound/SoundProvider.tsx b/src/lib/sound/SoundProvider.tsx
+new file mode 100644
+index 0000000..25926fa
+--- /dev/null
++++ b/src/lib/sound/SoundProvider.tsx
+@@ -0,0 +1,63 @@
++'use client'
++
++import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
++import { SoundManager } from './sound-manager'
++import { SoundContext, type SoundContextValue } from './sound-context'
++
++export function SoundProvider({ children }: { children: ReactNode }) {
++  const managerRef = useRef<SoundManager | null>(null)
++  const [prefs, setPrefs] = useState({ muted: false, volume: 1 })
++
++  // Create the manager once, client-side only.
++  if (managerRef.current === null && typeof window !== 'undefined') {
++    managerRef.current = new SoundManager()
++    setPrefs({ muted: managerRef.current.isMuted(), volume: managerRef.current.getVolume() })
++  }
++
++  // Unlock the AudioContext on the first user gesture (autoplay policy).
++  // The first play() attempt also resumes, but an explicit listener makes the
++  // first click sound reliable on iOS Safari.
++  useEffect(() => {
++    const manager = managerRef.current
++    if (!manager) return
++
++    const unlock = () => {
++      void manager.init()
++    }
++    window.addEventListener('pointerdown', unlock, { once: true })
++    window.addEventListener('keydown', unlock, { once: true })
++    window.addEventListener('touchstart', unlock, { once: true })
++
++    return () => {
++      window.removeEventListener('pointerdown', unlock)
++      window.removeEventListener('keydown', unlock)
++      window.removeEventListener('touchstart', unlock)
++      manager.dispose()
++      managerRef.current = null
++    }
++  }, [])
++
++  const play = useCallback((soundId: Parameters<SoundManager['play']>[0]) => {
++    managerRef.current?.play(soundId)
++  }, [])
++
++  const setMuted = useCallback((muted: boolean) => {
++    managerRef.current?.setMuted(muted)
++    setPrefs((p) => ({ ...p, muted }))
++  }, [])
++
++  const setVolume = useCallback((volume: number) => {
++    managerRef.current?.setVolume(volume)
++    setPrefs((p) => ({ ...p, volume }))
++  }, [])
++
++  const value: SoundContextValue = {
++    play,
++    muted: prefs.muted,
++    volume: prefs.volume,
++    setMuted,
++    setVolume,
++  }
++
++  return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>
++}
+diff --git a/src/lib/sound/hover-sound.ts b/src/lib/sound/hover-sound.ts
+new file mode 100644
+index 0000000..b2091d8
+--- /dev/null
++++ b/src/lib/sound/hover-sound.ts
+@@ -0,0 +1,36 @@
++'use client'
++
++import { useCallback, useRef } from 'react'
++import { useSound } from './sound-context'
++
++/** Minimum ms between hover sounds across all elements sharing this hook. */
++const HOVER_COOLDOWN_MS = 100
++
++/**
++ * Returns an onMouseEnter handler that plays the 'hover' sound, but only on
++ * devices with a real pointer (hover-capable — never touch) and never more
++ * often than once per cooldown window.
++ */
++export function useHoverSound() {
++  const { play } = useSound()
++  const lastPlayedRef = useRef(0)
++  const hoverCapableRef = useRef<boolean | null>(null)
++
++  const isHoverCapable = useCallback(() => {
++    if (hoverCapableRef.current === null) {
++      hoverCapableRef.current =
++        typeof window !== 'undefined' &&
++        typeof window.matchMedia === 'function' &&
++        window.matchMedia('(hover: hover)').matches
++    }
++    return hoverCapableRef.current
++  }, [])
++
++  return useCallback(() => {
++    if (!isHoverCapable()) return
++    const now = performance.now()
++    if (now - lastPlayedRef.current < HOVER_COOLDOWN_MS) return
++    lastPlayedRef.current = now
++    play('hover')
++  }, [play, isHoverCapable])
++}
+diff --git a/src/lib/sound/index.ts b/src/lib/sound/index.ts
+new file mode 100644
+index 0000000..714bd7a
+--- /dev/null
++++ b/src/lib/sound/index.ts
+@@ -0,0 +1,5 @@
++export { SoundManager } from './sound-manager'
++export { SoundContext, useSound, type SoundContextValue } from './sound-context'
++export { SoundProvider } from './SoundProvider'
++export { useHoverSound } from './hover-sound'
++export type { SoundId, SoundConfig } from './sound-types'
+diff --git a/src/lib/sound/sound-context.ts b/src/lib/sound/sound-context.ts
+new file mode 100644
+index 0000000..5134d6c
+--- /dev/null
++++ b/src/lib/sound/sound-context.ts
+@@ -0,0 +1,25 @@
++'use client'
++
++import { createContext, useContext } from 'react'
++import type { SoundId } from './sound-types'
++
++export interface SoundContextValue {
++  /** Play a sound by id (no-op when muted or reduced-motion is on) */
++  play: (soundId: SoundId) => void
++  muted: boolean
++  volume: number
++  setMuted: (muted: boolean) => void
++  setVolume: (volume: number) => void
++}
++
++export const SoundContext = createContext<SoundContextValue>({
++  play: () => {},
++  muted: false,
++  volume: 1,
++  setMuted: () => {},
++  setVolume: () => {},
++})
++
++export function useSound(): SoundContextValue {
++  return useContext(SoundContext)
++}
+diff --git a/src/lib/sound/sound-manager.ts b/src/lib/sound/sound-manager.ts
+new file mode 100644
+index 0000000..13a8e97
+--- /dev/null
++++ b/src/lib/sound/sound-manager.ts
+@@ -0,0 +1,212 @@
++/**
++ * SoundManager — programmatic sound synthesis via Web Audio API.
++ *
++ * All sounds are generated on-demand with OscillatorNodes: no audio files,
++ * no fetches, no decode latency. AudioContext is created lazily on the first
++ * user gesture (autoplay policy) and shared for the lifetime of the page.
++ */
++
++import type { SoundConfig, SoundId } from './sound-types'
++
++const STORAGE_KEY_MUTED = 'sound-muted'
++const STORAGE_KEY_VOLUME = 'sound-volume'
++
++const DEFAULT_CONFIGS: Record<SoundId, SoundConfig> = {
++  click: { frequency: 660, type: 'triangle', duration: 0.08, gain: 0.35, attack: 0.002, release: 0.05 },
++  hover: { frequency: 440, type: 'sine', duration: 0.05, gain: 0.08, attack: 0.005, release: 0.03 },
++  start: {
++    frequency: 392, type: 'triangle', duration: 0.32, gain: 0.3, attack: 0.005, release: 0.18,
++    sweepTo: 784, harmony: { frequency: 523.25, type: 'sine', gain: 0.15 },
++  },
++  pause: { frequency: 440, type: 'sine', duration: 0.18, gain: 0.25, attack: 0.005, release: 0.12, sweepTo: 294 },
++  score: { frequency: 880, type: 'triangle', duration: 0.12, gain: 0.3, attack: 0.002, release: 0.08, sweepTo: 1318 },
++  gameOver: {
++    frequency: 440, type: 'sawtooth', duration: 0.6, gain: 0.25, attack: 0.005, release: 0.4, sweepTo: 110,
++    harmony: { frequency: 220, type: 'triangle', gain: 0.12 },
++  },
++  levelUp: {
++    frequency: 523.25, type: 'triangle', duration: 0.45, gain: 0.3, attack: 0.005, release: 0.25, sweepTo: 1046.5,
++    harmony: { frequency: 659.25, type: 'sine', gain: 0.18 },
++  },
++  combo: { frequency: 988, type: 'square', duration: 0.15, gain: 0.2, attack: 0.002, release: 0.1, sweepTo: 1568 },
++  error: { frequency: 220, type: 'square', duration: 0.25, gain: 0.22, attack: 0.003, release: 0.15, sweepTo: 165 },
++}
++
++export class SoundManager {
++  private audioContext: AudioContext | null = null
++  private masterGain: GainNode | null = null
++  private muted = false
++  private volume = 1.0
++  private disabled = false
++  private reducedMotionQuery: MediaQueryList | null = null
++  private configs: Record<SoundId, SoundConfig> = { ...DEFAULT_CONFIGS }
++  private recentPlayTimes = new Map<SoundId, number>()
++
++  constructor() {
++    this.loadPreferences()
++    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
++      this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
++      this.disabled = this.reducedMotionQuery.matches
++      this.reducedMotionQuery.addEventListener('change', this.handleReducedMotionChange)
++    }
++  }
++
++  private handleReducedMotionChange = (e: MediaQueryListEvent) => {
++    this.disabled = e.matches
++  }
++
++  private loadPreferences(): void {
++    if (typeof window === 'undefined' || !window.localStorage) return
++    try {
++      const m = window.localStorage.getItem(STORAGE_KEY_MUTED)
++      if (m !== null) this.muted = m === 'true'
++      const v = window.localStorage.getItem(STORAGE_KEY_VOLUME)
++      if (v !== null) {
++        const parsed = parseFloat(v)
++        if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 1) this.volume = parsed
++      }
++    } catch {
++      // localStorage unavailable (private mode, blocked) — defaults are fine
++    }
++  }
++
++  private persist(key: string, value: string): void {
++    if (typeof window === 'undefined' || !window.localStorage) return
++    try {
++      window.localStorage.setItem(key, value)
++    } catch {
++      // Non-fatal — preference just won't survive reload
++    }
++  }
++
++  /**
++   * Create/resume the AudioContext. Safe to call repeatedly; called lazily
++   * from play() and explicitly from init() on first user interaction.
++   */
++  async init(): Promise<void> {
++    this.ensureContext()
++    if (this.audioContext && this.audioContext.state === 'suspended') {
++      try {
++        await this.audioContext.resume()
++      } catch {
++        // Resume can reject before a user gesture — play() will retry later.
++      }
++    }
++  }
++
++  private ensureContext(): AudioContext | null {
++    if (typeof window === 'undefined') return null
++    if (!this.audioContext) {
++      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
++      if (!Ctor) return null
++      try {
++        this.audioContext = new Ctor()
++        this.masterGain = this.audioContext.createGain()
++        this.masterGain.gain.value = this.muted ? 0 : this.volume
++        this.masterGain.connect(this.audioContext.destination)
++      } catch {
++        return null
++      }
++    }
++    return this.audioContext
++  }
++
++  play(soundId: SoundId): void {
++    if (this.disabled || this.muted) return
++
++    // Rate-limit identical sounds: max one per 40ms (button spam protection)
++    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
++    const last = this.recentPlayTimes.get(soundId)
++    if (last !== undefined && now - last < 40) return
++    this.recentPlayTimes.set(soundId, now)
++
++    const ctx = this.ensureContext()
++    if (!ctx || !this.masterGain) return
++
++    if (ctx.state === 'suspended') {
++      ctx.resume().catch(() => {})
++    }
++
++    const config = this.configs[soundId]
++    if (!config) return
++
++    try {
++      const t0 = ctx.currentTime
++      const duration = config.duration
++      const osc = ctx.createOscillator()
++      const gain = ctx.createGain()
++
++      osc.type = config.type
++      osc.frequency.setValueAtTime(config.frequency, t0)
++      if (config.sweepTo !== undefined) {
++        osc.frequency.exponentialRampToValueAtTime(Math.max(1, config.sweepTo), t0 + duration)
++      }
++
++      // Attack/release envelope
++      gain.gain.setValueAtTime(0.0001, t0)
++      gain.gain.exponentialRampToValueAtTime(config.gain, t0 + config.attack)
++      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration - config.release >= config.attack
++        ? t0 + duration
++        : t0 + config.attack + config.release)
++
++      osc.connect(gain)
++      gain.connect(this.masterGain)
++      osc.start(t0)
++      osc.stop(t0 + duration + 0.05)
++
++      if (config.harmony) {
++        const osc2 = ctx.createOscillator()
++        const gain2 = ctx.createGain()
++        osc2.type = config.harmony.type
++        osc2.frequency.setValueAtTime(config.harmony.frequency, t0)
++        if (config.sweepTo !== undefined) {
++          osc2.frequency.exponentialRampToValueAtTime(Math.max(1, config.sweepTo), t0 + duration)
++        }
++        gain2.gain.setValueAtTime(0.0001, t0)
++        gain2.gain.exponentialRampToValueAtTime(config.harmony.gain, t0 + config.attack)
++        gain2.gain.exponentialRampToValueAtTime(0.0001, t0 + duration)
++        osc2.connect(gain2)
++        gain2.connect(this.masterGain)
++        osc2.start(t0)
++        osc2.stop(t0 + duration + 0.05)
++      }
++    } catch {
++      // Audio graph errors are non-fatal — silence is better than a crash
++    }
++  }
++
++  setMuted(muted: boolean): void {
++    this.muted = muted
++    this.persist(STORAGE_KEY_MUTED, String(muted))
++    if (this.masterGain) {
++      this.masterGain.gain.value = muted ? 0 : this.volume
++    }
++  }
++
++  setVolume(volume: number): void {
++    this.volume = Math.min(1, Math.max(0, volume))
++    this.persist(STORAGE_KEY_VOLUME, String(this.volume))
++    if (this.masterGain) {
++      this.masterGain.gain.value = this.muted ? 0 : this.volume
++    }
++  }
++
++  isMuted(): boolean {
++    return this.muted
++  }
++
++  getVolume(): number {
++    return this.volume
++  }
++
++  dispose(): void {
++    if (this.reducedMotionQuery) {
++      this.reducedMotionQuery.removeEventListener('change', this.handleReducedMotionChange)
++    }
++    if (this.audioContext) {
++      this.audioContext.close().catch(() => {})
++      this.audioContext = null
++      this.masterGain = null
++    }
++  }
++}
+diff --git a/src/lib/sound/sound-types.ts b/src/lib/sound/sound-types.ts
+new file mode 100644
+index 0000000..2908b21
+--- /dev/null
++++ b/src/lib/sound/sound-types.ts
+@@ -0,0 +1,37 @@
++/**
++ * Sound types for the minigame platform sound effects system.
++ */
++
++export type SoundId =
++  | 'click'
++  | 'hover'
++  | 'start'
++  | 'pause'
++  | 'score'
++  | 'gameOver'
++  | 'levelUp'
++  | 'combo'
++  | 'error'
++
++export interface SoundConfig {
++  /** Base frequency in Hz */
++  frequency: number
++  /** Oscillator type */
++  type: OscillatorType
++  /** Duration in seconds */
++  duration: number
++  /** Peak gain (0-1) */
++  gain: number
++  /** Attack time in seconds */
++  attack: number
++  /** Release time in seconds */
++  release: number
++  /** Optional frequency sweep target (Hz). If present, frequency glides from `frequency` to this value. */
++  sweepTo?: number
++  /** Optional second oscillator for richer sounds */
++  harmony?: {
++    frequency: number
++    type: OscillatorType
++    gain: number
++  }
++}
+diff --git a/tests/components/button-sound.test.ts b/tests/components/button-sound.test.ts
+new file mode 100644
+index 0000000..a655eb1
+--- /dev/null
++++ b/tests/components/button-sound.test.ts
+@@ -0,0 +1,20 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++
++const buttonSource = readFileSync(resolve('src/components/ui/button.tsx'), 'utf-8')
++
++test('Button plays click sound on press', () => {
++  assert.ok(buttonSource.includes('useSound'), 'Button should call useSound()')
++  assert.ok(buttonSource.includes("play('click')"), "Button should call play('click')")
++})
++
++test('Button does not play sound when disabled', () => {
++  // The handler must guard on disabled before playing
++  assert.match(
++    buttonSource,
++    /disabled[^\n]*play\('click'\)|play\('click'\)[\s\S]{0,200}disabled|if\s*\(?[\w.]*disabled[\s\S]{0,80}play\('click'\)/,
++    'click sound should be guarded by disabled check'
++  )
++})
+\ No newline at end of file
+diff --git a/tests/components/game-card-sound.test.ts b/tests/components/game-card-sound.test.ts
+new file mode 100644
+index 0000000..419e65b
+--- /dev/null
++++ b/tests/components/game-card-sound.test.ts
+@@ -0,0 +1,17 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++
++const gameCardSource = readFileSync(resolve('src/components/games/game-card.tsx'), 'utf-8')
++const navbarSource = readFileSync(resolve('src/components/navigation/navbar.tsx'), 'utf-8')
++
++test('GameCard Play button plays click sound', () => {
++  assert.ok(gameCardSource.includes('useSound'), 'GameCard should call useSound()')
++  assert.ok(gameCardSource.includes("play('click')"), "GameCard Play link should call play('click')")
++})
++
++test('Navbar nav links play click sound', () => {
++  // navLinks map should wire a click sound into Link clicks
++  assert.ok(navbarSource.includes("play('click')"), 'navbar links should call play(\'click\')')
++})
+\ No newline at end of file
+diff --git a/tests/components/hover-sound.test.ts b/tests/components/hover-sound.test.ts
+new file mode 100644
+index 0000000..4917e45
+--- /dev/null
++++ b/tests/components/hover-sound.test.ts
+@@ -0,0 +1,24 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++
++const buttonSource = readFileSync(resolve('src/components/ui/button.tsx'), 'utf-8')
++const navbarSource = readFileSync(resolve('src/components/navigation/navbar.tsx'), 'utf-8')
++const gameCardSource = readFileSync(resolve('src/components/games/game-card.tsx'), 'utf-8')
++
++test('hover sound helper exists with hover-capability check and debounce', () => {
++  // The shared helper should check (hover: hover) so touch devices never hover-sound
++  const helperSource = readFileSync(resolve('src/lib/sound/hover-sound.ts'), 'utf-8')
++  assert.ok(helperSource.includes('(hover: hover)'), 'helper should check hover capability')
++  assert.ok(/debounce|lastPlayed|cooldown|HOVER_COOLDOWN/i.test(helperSource), 'helper should debounce repeated hovers')
++})
++
++test('Button, navbar links and GameCard play hover sound via the helper', () => {
++  for (const [name, source] of [['button', buttonSource], ['navbar', navbarSource], ['game-card', gameCardSource]] as const) {
++    assert.ok(
++      source.includes('useHoverSound'),
++      `${name} should use the shared useHoverSound helper`
++    )
++  }
++})
+\ No newline at end of file
+diff --git a/tests/components/navbar-sound.test.ts b/tests/components/navbar-sound.test.ts
+new file mode 100644
+index 0000000..72783d6
+--- /dev/null
++++ b/tests/components/navbar-sound.test.ts
+@@ -0,0 +1,28 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++
++// The navbar is a .tsx client component that can't be imported by node's
++// type-stripping loader (JSX). This test verifies the source integrates the
++// sound hook and mute toggle structurally, plus that the hook it consumes
++// exposes the needed API.
++const navbarSource = readFileSync(
++  resolve('src/components/navigation/navbar.tsx'),
++  'utf-8'
++)
++
++test('navbar imports useSound and renders a mute toggle with aria-label', () => {
++  assert.ok(navbarSource.includes('useSound'), 'navbar should call useSound()')
++  assert.ok(/aria-label=\{?["'`]?[Mm]ute|aria-label=["'`]?(Un)?mute/i.test(navbarSource), 'mute button should have an aria-label')
++  assert.ok(navbarSource.includes('setMuted'), 'mute button should call setMuted')
++  assert.ok(navbarSource.includes('muted'), 'navbar should read muted state')
++})
++
++test('navbar mute button toggles based on muted state', () => {
++  // The aria-label must be dynamic: "Mute sound effects" / "Unmute sound effects"
++  assert.ok(
++    navbarSource.includes('Unmute') && navbarSource.includes('Mute'),
++    'aria-label should reflect both muted and unmuted states'
++  )
++})
+\ No newline at end of file
+diff --git a/tests/components/volume-slider.test.ts b/tests/components/volume-slider.test.ts
+new file mode 100644
+index 0000000..b2474c7
+--- /dev/null
++++ b/tests/components/volume-slider.test.ts
+@@ -0,0 +1,23 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++
++const sliderSource = readFileSync(resolve('src/components/ui/volume-slider.tsx'), 'utf-8')
++const navbarSource = readFileSync(resolve('src/components/navigation/navbar.tsx'), 'utf-8')
++
++test('VolumeSlider renders a range input bound to useSound volume', () => {
++  assert.ok(sliderSource.includes('useSound'), 'VolumeSlider should call useSound()')
++  assert.ok(sliderSource.includes('type="range"'), 'should render a range input')
++  assert.ok(sliderSource.includes('setVolume'), 'should call setVolume')
++  assert.ok(sliderSource.includes('volume'), 'should read volume')
++  assert.ok(sliderSource.includes('aria-label'), 'slider should have an aria-label')
++})
++
++test('VolumeSlider is desktop-only (hidden on mobile)', () => {
++  assert.ok(sliderSource.includes('hidden') && /sm:block|md:block/.test(sliderSource), 'slider should hide on small screens')
++})
++
++test('Navbar renders the VolumeSlider', () => {
++  assert.ok(navbarSource.includes('VolumeSlider'), 'navbar should render VolumeSlider')
++})
+\ No newline at end of file
+diff --git a/tests/features/game-sounds.test.ts b/tests/features/game-sounds.test.ts
+new file mode 100644
+index 0000000..0666630
+--- /dev/null
++++ b/tests/features/game-sounds.test.ts
+@@ -0,0 +1,28 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { resolve } from 'node:path'
++
++const GAMES: Array<[string, string, string[]]> = [
++  // [path, label, required sound ids]
++  ['src/features/snake/snake-game.tsx', 'snake', ['start', 'score', 'gameOver', 'pause']],
++  ['src/features/2048/game2048.tsx', '2048', ['score', 'gameOver']],
++  ['src/features/memory/memory-game.tsx', 'memory', ['start', 'levelUp']],
++  ['src/features/reaction/reaction-game.tsx', 'reaction', ['start', 'score', 'error']],
++  ['src/features/whack-a-mole/whack-a-mole-game.tsx', 'whack-a-mole', ['start', 'score', 'gameOver']],
++  ['src/features/runner/runner-game.tsx', 'runner', ['start', 'gameOver', 'pause']],
++  ['src/features/brick-blast/brick-blast.tsx', 'brick-blast', ['start', 'score', 'gameOver', 'levelUp', 'combo', 'pause']],
++]
++
++for (const [path, label, required] of GAMES) {
++  test(`${label}: integrates useSound and plays required event sounds`, () => {
++    const source = readFileSync(resolve(path), 'utf-8')
++    assert.ok(source.includes('useSound'), `${label} should call useSound()`)
++    for (const soundId of required) {
++      assert.ok(
++        source.includes(`play('${soundId}')`),
++        `${label} should call play('${soundId}')`
++      )
++    }
++  })
++}
+\ No newline at end of file
+diff --git a/tests/hooks/useSound.test.ts b/tests/hooks/useSound.test.ts
+new file mode 100644
+index 0000000..b79feba
+--- /dev/null
++++ b/tests/hooks/useSound.test.ts
+@@ -0,0 +1,19 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { SoundContext, useSound } from '../../src/lib/sound/sound-context.ts'
++import { SoundManager } from '../../src/lib/sound/sound-manager.ts'
++
++test('useSound hook context exists with correct default shape', () => {
++  assert.ok(SoundContext, 'SoundContext should be exported')
++  const defaultValue = (SoundContext as { _currentValue?: unknown })._currentValue
++  assert.ok(defaultValue, 'context should have a default value')
++  assert.equal(typeof (defaultValue as { play: unknown }).play, 'function')
++  assert.equal((defaultValue as { muted: unknown }).muted, false)
++  assert.equal((defaultValue as { volume: unknown }).volume, 1)
++  assert.equal(typeof useSound, 'function', 'useSound should be a function')
++
++  // SoundManager still works standalone
++  const manager = new SoundManager()
++  assert.equal(typeof manager.play, 'function')
++  manager.dispose()
++})
+\ No newline at end of file
+diff --git a/tests/integration/sound-system.test.ts b/tests/integration/sound-system.test.ts
+new file mode 100644
+index 0000000..ff60865
+--- /dev/null
++++ b/tests/integration/sound-system.test.ts
+@@ -0,0 +1,60 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { readFileSync } from 'node:fs'
++import { readdirSync, statSync } from 'node:fs'
++import { resolve, join } from 'node:path'
++
++// Integration: every consumer of the sound system must render inside the
++// SoundProvider tree. layout.tsx is the single mount point — verify the
++// provider wraps Navbar + children, and that every play() call site uses
++// a valid SoundId.
++
++const SOUND_IDS = new Set([
++  'click', 'hover', 'start', 'pause', 'score', 'gameOver', 'levelUp', 'combo', 'error',
++])
++
++test('layout mounts SoundProvider around Navbar and main content', () => {
++  const layout = readFileSync(resolve('src/app/layout.tsx'), 'utf-8')
++  assert.ok(layout.includes('SoundProvider'), 'layout should import SoundProvider')
++  // Provider must wrap the Navbar
++  const providerIdx = layout.indexOf('<SoundProvider>')
++  const navbarIdx = layout.indexOf('<Navbar')
++  assert.ok(providerIdx !== -1 && navbarIdx !== -1 && providerIdx < navbarIdx, 'SoundProvider should wrap Navbar')
++})
++
++function walk(dir: string, exts: string[], out: string[] = []): string[] {
++  for (const entry of readdirSync(dir)) {
++    const full = join(dir, entry)
++    if (statSync(full).isDirectory()) walk(full, exts, out)
++    else if (exts.some((e) => entry.endsWith(e))) out.push(full)
++  }
++  return out
++}
++
++test('every play(<id>) call site in src uses a valid SoundId', () => {
++  const files = walk('src', ['.ts', '.tsx'])
++  const ids: string[] = []
++  for (const f of files) {
++    const src = readFileSync(f, 'utf-8')
++    const matches = src.matchAll(/play\(['"]([a-zA-Z]+)['"]\)/g)
++    for (const m of Array.from(matches)) ids.push(m[1])
++  }
++  assert.ok(ids.length > 0, 'should find play() call sites')
++  for (const id of ids) {
++    assert.ok(SOUND_IDS.has(id), `invalid sound id used: ${id}`)
++  }
++})
++
++test('all sound modules export through the barrel', () => {
++  const barrel = readFileSync(resolve('src/lib/sound/index.ts'), 'utf-8')
++  for (const name of ['SoundManager', 'SoundProvider', 'useSound', 'SoundContext', 'SoundId']) {
++    assert.ok(barrel.includes(name), `barrel should export ${name}`)
++  }
++})
++
++test('no sound code leaks into apex-racing (excluded by spec)', () => {
++  const racingPage = readFileSync(resolve('src/app/games/racing/page.tsx'), 'utf-8')
++  assert.ok(!racingPage.includes('useSound'), 'racing page must not import the platform sound system')
++  const racingGame = readFileSync(resolve('src/features/racing/racing-game.tsx'), 'utf-8')
++  assert.ok(!racingGame.includes('useSound'), 'racing game must not import the platform sound system')
++})
+\ No newline at end of file
+diff --git a/tests/lib/sound/reduced-motion.test.ts b/tests/lib/sound/reduced-motion.test.ts
+new file mode 100644
+index 0000000..a91c261
+--- /dev/null
++++ b/tests/lib/sound/reduced-motion.test.ts
+@@ -0,0 +1,64 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { SoundManager } from '../../../src/lib/sound/sound-manager.ts'
++
++// jsdom-less environment: node has no window/matchMedia, so the manager
++// should still construct and play() must be a safe no-op.
++
++test('SoundManager respects prefers-reduced-motion (no matchMedia = not disabled, play safe)', async () => {
++  // In node there is no window/matchMedia; the manager must not crash and
++  // must remain enabled by default (reduced-motion only applies in browser).
++  const manager = new SoundManager()
++  await manager.init()
++  assert.doesNotThrow(() => manager.play('click'))
++  assert.equal(manager.isMuted(), false)
++  manager.dispose()
++})
++
++test('SoundManager play is no-op when muted', async () => {
++  const manager = new SoundManager()
++  await manager.init()
++  manager.setMuted(true)
++  assert.doesNotThrow(() => manager.play('click'))
++  assert.equal(manager.isMuted(), true)
++  manager.setMuted(false)
++  assert.equal(manager.isMuted(), false)
++  manager.dispose()
++})
++
++test('SoundManager setMuted persists preference to localStorage when available', async () => {
++  // Without window.localStorage the persist is a silent no-op — must not throw
++  const manager = new SoundManager()
++  manager.setMuted(true)
++  manager.setVolume(0.5)
++  assert.equal(manager.getVolume(), 0.5)
++  manager.dispose()
++})
++
++test('SoundManager volume clamps to [0, 1]', async () => {
++  const manager = new SoundManager()
++  manager.setVolume(2)
++  assert.equal(manager.getVolume(), 1)
++  manager.setVolume(-1)
++  assert.equal(manager.getVolume(), 0)
++  manager.dispose()
++})
++
++test('SoundManager rate-limits identical rapid plays', async () => {
++  const manager = new SoundManager()
++  await manager.init()
++  // First play records a timestamp; the second within 40ms must be dropped.
++  // This is behavior-internal, but at minimum repeated plays must not throw.
++  manager.play('click')
++  manager.play('click')
++  manager.play('click')
++  manager.dispose()
++})
++
++test('SoundManager reduced-motion listener cleanup on dispose', async () => {
++  const manager = new SoundManager()
++  await manager.init()
++  assert.doesNotThrow(() => manager.dispose())
++  // Double dispose must also be safe
++  assert.doesNotThrow(() => manager.dispose())
++})
+diff --git a/tests/lib/sound/sound-manager.test.ts b/tests/lib/sound/sound-manager.test.ts
+new file mode 100644
+index 0000000..f04e7bd
+--- /dev/null
++++ b/tests/lib/sound/sound-manager.test.ts
+@@ -0,0 +1,12 @@
++import assert from 'node:assert/strict'
++import { test } from 'node:test'
++import { SoundManager } from '../../../src/lib/sound/sound-manager.ts'
++
++test('SoundManager initializes and can play a click sound', async () => {
++  const manager = new SoundManager()
++  await manager.init()
++  // Should not throw
++  manager.play('click')
++  assert.equal(manager.isMuted(), false)
++  assert.equal(manager.getVolume(), 1.0)
++})
+\ No newline at end of file

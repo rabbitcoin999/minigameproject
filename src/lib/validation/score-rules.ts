@@ -67,6 +67,11 @@ export const SCORE_RULES: Record<GameKey, ScoreRule> = {
     minDurationPerPoint: 50,
     description: 'Brick Blast: score from destroying bricks across multiple levels.',
   },
+  'tank-fight': {
+    maxScore: 200_000, // Max waves * (enemies per wave * 100 + wave bonus)
+    minDurationPerPoint: 15, // 100 pts per kill, multiple kills/sec possible
+    description: 'Tank Fight: score from destroying enemy tanks and wave bonuses.',
+  },
 }
 
 export interface ScoreValidationInput {

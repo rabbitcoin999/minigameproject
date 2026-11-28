@@ -13,6 +13,7 @@ import {
 } from './logic'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 type Phase = 'playing' | 'over'
@@ -32,6 +33,7 @@ export function Game2048() {
   const maxTileRef = useRef<number>(0)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
 
   useEffect(() => {
     maxTileRef.current = Math.max(...grid.flat())
@@ -96,14 +98,17 @@ export function Game2048() {
         const newScore = scoreRef.current + result.scoreGained
         setScore(newScore)
 
+        if (result.scoreGained > 0) play('score')
+
         if (!hasValidMoves(newGrid)) {
+          play('gameOver')
           // Defer to avoid setState-in-render
           setTimeout(() => finishGame(newScore), 50)
         }
         return newGrid
       })
     },
-    [phase, finishGame]
+    [phase, finishGame, play]
   )
 
   const scoreRef = useRef(0)

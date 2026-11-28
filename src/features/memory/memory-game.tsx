@@ -13,6 +13,7 @@ import {
 } from './logic'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 type Phase = 'idle' | 'playing' | 'won'
@@ -31,6 +32,7 @@ export function MemoryGame() {
   const unflipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
 
   const loadBest = useCallback((d: Difficulty) => {
     if (!player) {
@@ -77,6 +79,7 @@ export function MemoryGame() {
     setMismatchFlash(false)
     setPhase('playing')
     startRef.current = Date.now()
+    play('start')
     timerRef.current = setInterval(() => {
       setElapsedMs(Date.now() - startRef.current)
     }, 100)
@@ -104,6 +107,7 @@ export function MemoryGame() {
 
     if (outcome.allMatched) {
       // Won!
+      play('levelUp')
       stopTimer()
       const completionMs = Date.now() - startRef.current
       setElapsedMs(completionMs)

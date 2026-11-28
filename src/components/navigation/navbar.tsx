@@ -4,10 +4,15 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useAuth } from '@/features/auth/use-auth'
+import { useSound } from '@/lib/sound/sound-context'
+import { useHoverSound } from '@/lib/sound/hover-sound'
+import { VolumeSlider } from '@/components/ui/volume-slider'
 import { GAMES } from '@/config/games'
 
 export function Navbar() {
   const { player, loading, logout } = useAuth()
+  const { play, muted, setMuted } = useSound()
+  const hoverSound = useHoverSound()
   const [mobileOpen, setMobileOpen] = useState(false)
   const router = useRouter()
 
@@ -39,6 +44,8 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
+                onClick={() => play('click')}
+                onMouseEnter={hoverSound}
                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
               >
                 {link.label}
@@ -48,12 +55,16 @@ export function Navbar() {
               <>
                 <Link
                   href="/profile"
+                  onClick={() => play('click')}
+                  onMouseEnter={hoverSound}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
                 >
                   Profile
                 </Link>
                 <Link
                   href="/statistics"
+                  onClick={() => play('click')}
+                  onMouseEnter={hoverSound}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 transition hover:bg-dark-800 hover:text-white"
                 >
                   Statistics
@@ -64,6 +75,29 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMuted(!muted)}
+            className="rounded-md p-2 text-dark-300 transition hover:bg-dark-800 hover:text-white"
+            aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+            title={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+          >
+            {muted ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+              </svg>
+            )}
+            </button>
+            <VolumeSlider />
+          </div>
           {loading ? (
             <div className="h-8 w-24 animate-pulse rounded-md bg-dark-800" />
           ) : player ? (
@@ -119,7 +153,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => { play('click'); setMobileOpen(false) }}
                 className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
               >
                 {link.label}
@@ -129,14 +163,14 @@ export function Navbar() {
               <>
                 <Link
                   href="/profile"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => { play('click'); setMobileOpen(false) }}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
                 >
                   Profile
                 </Link>
                 <Link
                   href="/statistics"
-                  onClick={() => setMobileOpen(false)}
+                  onClick={() => { play('click'); setMobileOpen(false) }}
                   className="rounded-md px-3 py-2 text-sm font-medium text-dark-300 hover:bg-dark-800 hover:text-white"
                 >
                   Statistics

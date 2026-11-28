@@ -119,6 +119,19 @@ export const GAMES: GameConfig[] = [
     lowerIsBetter: true,
     hasDifficulty: false,
   },
+  {
+    key: 'tank-fight',
+    name: 'Tank Fight',
+    description: 'Top-down arcade tank battle — survive waves of enemy tanks!',
+    icon: '🚀',
+    color: '#22c55e',
+    gradient: 'from-green-500 to-emerald-600',
+    path: '/games/tank-fight',
+    scoreLabel: 'Score',
+    scoreUnit: 'pts',
+    lowerIsBetter: false,
+    hasDifficulty: false,
+  },
 ]
 
 export const GAME_KEYS: GameKey[] = GAMES.map((g) => g.key)

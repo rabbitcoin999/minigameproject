@@ -6,6 +6,7 @@ import Link from 'next/link'
 import type { RunnerViewportHandle } from './runner-viewport'
 import { useAuth } from '@/features/auth/use-auth'
 import { useScoreSubmit } from '@/features/auth/use-score-submit'
+import { useSound } from '@/lib/sound/sound-context'
 import { Button } from '@/components/ui/button'
 
 const RunnerViewport = dynamic(
@@ -35,6 +36,7 @@ export function RunnerGame() {
   const elapsedRef = useRef<number>(0)
   const { player } = useAuth()
   const { submitScore } = useScoreSubmit()
+  const { play } = useSound()
 
   // Load personal best
   useEffect(() => {
@@ -58,15 +60,17 @@ export function RunnerGame() {
     submittedRef.current = false
     startTimeRef.current = Date.now()
     elapsedRef.current = 0
+    play('start')
     viewportRef.current?.start()
-  }, [])
+  }, [play])
 
   const pauseGame = useCallback(() => {
     if (phase === 'running') {
       viewportRef.current?.pause()
+      play('pause')
       setPhase('paused')
     }
-  }, [phase])
+  }, [phase, play])
 
   const resumeGame = useCallback(() => {
     if (phase === 'paused') {
@@ -85,10 +89,11 @@ export function RunnerGame() {
 
   const handleGameOver = useCallback(
     (finalScore: number) => {
+      play('gameOver')
       setScore(finalScore)
       setPhase('over')
     },
-    []
+    [play]
   )
 
   const handleAutoPause = useCallback(() => {

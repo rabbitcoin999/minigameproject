@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import type { GameConfig } from '@/config/games'
+import { useSound } from '@/lib/sound/sound-context'
+import { useHoverSound } from '@/lib/sound/hover-sound'
 
 interface GameCardProps {
   game: GameConfig
@@ -9,6 +11,9 @@ interface GameCardProps {
 }
 
 export function GameCard({ game, personalBest }: GameCardProps) {
+  const { play } = useSound()
+  const hoverSound = useHoverSound()
+
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-xl border border-dark-800 bg-dark-900 transition hover:border-dark-600 hover:shadow-xl">
       <div className={`flex h-28 items-center justify-center bg-gradient-to-br ${game.gradient}`}>
@@ -30,6 +35,8 @@ export function GameCard({ game, personalBest }: GameCardProps) {
         </div>
         <Link
           href={game.path}
+          onClick={() => play('click')}
+          onMouseEnter={hoverSound}
           className="mt-4 inline-flex items-center justify-center rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-600"
         >
           Play
