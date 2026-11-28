@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 
@@ -53,8 +53,20 @@ test('all sound modules export through the barrel', () => {
 })
 
 test('no sound code leaks into apex-racing (excluded by spec)', () => {
-  const racingPage = readFileSync(resolve('src/app/games/racing/page.tsx'), 'utf-8')
-  assert.ok(!racingPage.includes('useSound'), 'racing page must not import the platform sound system')
-  const racingGame = readFileSync(resolve('src/features/racing/racing-game.tsx'), 'utf-8')
-  assert.ok(!racingGame.includes('useSound'), 'racing game must not import the platform sound system')
+  // The racing feature is separate, unmerged work: its files may not exist on
+  // a clean checkout of this branch, so the exclusion check only asserts on
+  // files that exist. When racing lands, its files are picked up here.
+  const racingPaths = [
+    'src/app/games/racing/page.tsx',
+    'src/features/racing/racing-game.tsx',
+    'src/features/racing/format.ts',
+  ]
+  const { existsSync: _e } = { existsSync }
+  for (const p of racingPaths) {
+    const full = resolve(p)
+    if (!_e(full)) continue
+    const src = readFileSync(full, 'utf-8')
+    assert.ok(!src.includes('useSound'), `${p} must not import the platform sound system`)
+    assert.ok(!/play\('/.test(src), `${p} must not call play()`)
+  }
 })

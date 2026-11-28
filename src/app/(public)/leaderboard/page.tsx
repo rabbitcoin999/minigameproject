@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { GAMES, getGameConfig } from '@/config/games'
 import { useAuth } from '@/features/auth/use-auth'
 import type { Difficulty, GameKey } from '@/types/game'
+import { formatLapTime } from '@/features/racing/format'
 
 interface Entry {
   rank: number
@@ -18,6 +19,13 @@ interface MyRank {
   rank: number | null
   score: number | null
   totalPlayers: number
+}
+
+// Gold / silver / bronze shine sweep (styles live in globals.css)
+const SHINE_CLASS: Record<number, string> = {
+  1: 'shine shine-gold',
+  2: 'shine shine-silver',
+  3: 'shine shine-bronze',
 }
 
 export default function LeaderboardPage() {
@@ -86,6 +94,9 @@ export default function LeaderboardPage() {
     }
     if (game.key === 'reaction') {
       return `${entry.score} ms`
+    }
+    if (game.key === 'racing') {
+      return formatLapTime(entry.score)
     }
     if (game.key === 'runner') {
       return `${entry.score} m`
@@ -184,12 +195,20 @@ export default function LeaderboardPage() {
           </p>
         ) : (
           <ol>
-            {entries.map((entry) => (
+            {entries.map((entry, index) => (
               <li
                 key={entry.rank}
-                className={`grid grid-cols-[3rem_1fr_auto] items-center gap-2 border-b border-dark-800/50 px-4 py-3 sm:grid-cols-[4rem_1fr_auto_auto] ${
+                // Rows fade in one after another; the delay is capped so a long
+                // page (25 rows) never makes the player wait.
+                style={
+                  {
+                    animationDelay: `${Math.min(index * 40, 600)}ms`,
+                    '--shine-delay': `${0.8 + entry.rank * 0.7}s`,
+                  } as React.CSSProperties
+                }
+                className={`animate-row-in grid grid-cols-[3rem_1fr_auto] items-center gap-2 border-b border-dark-800/50 px-4 py-3 sm:grid-cols-[4rem_1fr_auto_auto] ${
                   entry.rank <= 3 ? 'bg-dark-800/30' : ''
-                } ${player?.playerId.toLowerCase() === entry.playerId.toLowerCase() ? 'ring-1 ring-inset ring-primary-500/40' : ''}`}
+                } ${SHINE_CLASS[entry.rank] ?? ''} ${player?.playerId.toLowerCase() === entry.playerId.toLowerCase() ? 'ring-1 ring-inset ring-primary-500/40' : ''}`}
               >
                 <span className="flex items-center">
                   <span

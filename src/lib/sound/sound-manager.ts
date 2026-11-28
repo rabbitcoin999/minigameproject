@@ -12,24 +12,25 @@ const STORAGE_KEY_MUTED = 'sound-muted'
 const STORAGE_KEY_VOLUME = 'sound-volume'
 
 const DEFAULT_CONFIGS: Record<SoundId, SoundConfig> = {
-  click: { frequency: 660, type: 'triangle', duration: 0.08, gain: 0.35, attack: 0.002, release: 0.05 },
-  hover: { frequency: 440, type: 'sine', duration: 0.05, gain: 0.08, attack: 0.005, release: 0.03 },
+  click: { frequency: 660, type: 'triangle', duration: 0.2, gain: 0.35, attack: 0.005, release: 0.12 },
+  hover: { frequency: 440, type: 'sine', duration: 0.12, gain: 0.08, attack: 0.01, release: 0.06 },
   start: {
-    frequency: 392, type: 'triangle', duration: 0.32, gain: 0.3, attack: 0.005, release: 0.18,
+    frequency: 392, type: 'triangle', duration: 0.6, gain: 0.3, attack: 0.01, release: 0.35,
     sweepTo: 784, harmony: { frequency: 523.25, type: 'sine', gain: 0.15 },
   },
-  pause: { frequency: 440, type: 'sine', duration: 0.18, gain: 0.25, attack: 0.005, release: 0.12, sweepTo: 294 },
-  score: { frequency: 880, type: 'triangle', duration: 0.12, gain: 0.3, attack: 0.002, release: 0.08, sweepTo: 1318 },
+  pause: { frequency: 440, type: 'sine', duration: 0.35, gain: 0.25, attack: 0.01, release: 0.2, sweepTo: 294 },
+  score: { frequency: 880, type: 'triangle', duration: 0.25, gain: 0.3, attack: 0.005, release: 0.15, sweepTo: 1318 },
   gameOver: {
-    frequency: 440, type: 'sawtooth', duration: 0.6, gain: 0.25, attack: 0.005, release: 0.4, sweepTo: 110,
+    frequency: 440, type: 'sawtooth', duration: 1.0, gain: 0.25, attack: 0.01, release: 0.6, sweepTo: 110,
     harmony: { frequency: 220, type: 'triangle', gain: 0.12 },
   },
   levelUp: {
-    frequency: 523.25, type: 'triangle', duration: 0.45, gain: 0.3, attack: 0.005, release: 0.25, sweepTo: 1046.5,
+    frequency: 523.25, type: 'triangle', duration: 0.8, gain: 0.3, attack: 0.01, release: 0.4, sweepTo: 1046.5,
     harmony: { frequency: 659.25, type: 'sine', gain: 0.18 },
   },
-  combo: { frequency: 988, type: 'square', duration: 0.15, gain: 0.2, attack: 0.002, release: 0.1, sweepTo: 1568 },
-  error: { frequency: 220, type: 'square', duration: 0.25, gain: 0.22, attack: 0.003, release: 0.15, sweepTo: 165 },
+  combo: { frequency: 988, type: 'square', duration: 0.3, gain: 0.2, attack: 0.005, release: 0.15, sweepTo: 1568 },
+  error: { frequency: 220, type: 'square', duration: 0.4, gain: 0.22, attack: 0.005, release: 0.25, sweepTo: 165 },
+  shoot: { frequency: 600, type: 'square', duration: 0.1, gain: 0.15, attack: 0.001, release: 0.05, sweepTo: 400 },
 }
 
 export class SoundManager {
@@ -43,16 +44,45 @@ export class SoundManager {
   private recentPlayTimes = new Map<SoundId, number>()
 
   constructor() {
+    // Deliberately side-effect free: this runs during the provider's first
+    // client render, and reading localStorage here would desync hydration
+    // from the server HTML (stored prefs would change the rendered output).
+    // Stored preferences load via refreshPrefs(), called post-hydration.
+    this.initReducedMotionListener()
+  }
+
+  /** Read persisted mute/volume into state. Call after hydration, never during render. */
+  refreshPrefs(): void {
     this.loadPreferences()
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  }
+
+  private initReducedMotionListener(): void {
+    // Sound effects are not motion — they should not be disabled by
+    // prefers-reduced-motion. This listener is kept for potential future
+    // visual-only effects (e.g., screen shake), but does not disable audio.
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    try {
       this.reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-      this.disabled = this.reducedMotionQuery.matches
-      this.reducedMotionQuery.addEventListener('change', this.handleReducedMotionChange)
+      // Intentionally NOT setting this.disabled = this.reducedMotionQuery.matches
+      // Audio should play regardless of reduced-motion preference.
+      const q = this.reducedMotionQuery as unknown as {
+        addEventListener?: typeof MediaQueryList.prototype.addEventListener
+        addListener?: (cb: (e: MediaQueryListEvent) => void) => void
+      }
+      if (q.addEventListener) {
+        q.addEventListener('change', this.handleReducedMotionChange)
+      } else if (q.addListener) {
+        q.addListener(this.handleReducedMotionChange)
+      }
+    } catch {
+      // matchMedia can throw in exotic embeds — reduced-motion then stays off
     }
   }
 
   private handleReducedMotionChange = (e: MediaQueryListEvent) => {
-    this.disabled = e.matches
+    // Sounds are not motion — do not disable on reduced-motion change
+    // This could be used for visual-only effects in the future
+    // this.disabled = e.matches
   }
 
   private loadPreferences(): void {
@@ -201,7 +231,16 @@ export class SoundManager {
 
   dispose(): void {
     if (this.reducedMotionQuery) {
-      this.reducedMotionQuery.removeEventListener('change', this.handleReducedMotionChange)
+      const q = this.reducedMotionQuery as unknown as {
+        removeEventListener?: typeof MediaQueryList.prototype.removeEventListener
+        removeListener?: (cb: (e: MediaQueryListEvent) => void) => void
+      }
+      if (q.removeEventListener) {
+        q.removeEventListener('change', this.handleReducedMotionChange)
+      } else if (q.removeListener) {
+        q.removeListener(this.handleReducedMotionChange)
+      }
+      this.reducedMotionQuery = null
     }
     if (this.audioContext) {
       this.audioContext.close().catch(() => {})

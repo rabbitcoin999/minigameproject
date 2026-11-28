@@ -16,6 +16,8 @@ export interface ScoreRule {
   description: string
 }
 
+export const RACING_MIN_LAP_MS = 50_000
+
 export const SCORE_RULES: Record<GameKey, ScoreRule> = {
   snake: {
     maxScore: 10_000,
@@ -54,10 +56,21 @@ export const SCORE_RULES: Record<GameKey, ScoreRule> = {
     minDurationPerPoint: 40,
     description: 'Runner: score is distance survived in meters; ~33 ms per meter at max speed.',
   },
+  racing: {
+    // score = best single-lap time in ms (lower is better). The circuit is ~2.9 km;
+    // the fastest physically possible lap is well above 55 s, and 15 min is a generous cap.
+    maxScore: 900_000,
+    description: 'Racing: score is the best lap time in milliseconds; lower is better.',
+  },
   'brick-blast': {
     maxScore: 500_000, // Theoretical max across many levels
     minDurationPerPoint: 50,
     description: 'Brick Blast: score from destroying bricks across multiple levels.',
+  },
+  'tank-fight': {
+    maxScore: 200_000, // Max waves * (enemies per wave * 100 + wave bonus)
+    minDurationPerPoint: 15, // 100 pts per kill, multiple kills/sec possible
+    description: 'Tank Fight: score from destroying enemy tanks and wave bonuses.',
   },
 }
 
@@ -109,6 +122,17 @@ export function validateScoreRules(input: ScoreValidationInput): ScoreValidation
   if (input.gameKey === 'reaction') {
     if (input.score < rule.minCompletionTime! || input.score > rule.maxCompletionTime!) {
       return { valid: false, reason: 'Reaction time out of plausible range.' }
+    }
+  }
+
+  // Racing: score IS the best lap time (ms). The ideal racing line is ~75 s, so anything
+  // under 50 s is impossible, and the race (durationMs) must have lasted at least one lap.
+  if (input.gameKey === 'racing') {
+    if (input.score < RACING_MIN_LAP_MS) {
+      return { valid: false, reason: 'Lap time is impossibly fast.' }
+    }
+    if (input.playDurationMs !== null && input.playDurationMs < input.score) {
+      return { valid: false, reason: 'Race duration is shorter than the lap time.' }
     }
   }
 

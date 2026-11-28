@@ -12,6 +12,7 @@ export type SoundId =
   | 'levelUp'
   | 'combo'
   | 'error'
+  | 'shoot'
 
 export interface SoundConfig {
   /** Base frequency in Hz */

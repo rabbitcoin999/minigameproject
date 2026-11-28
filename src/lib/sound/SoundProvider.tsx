@@ -8,19 +8,27 @@ export function SoundProvider({ children }: { children: ReactNode }) {
   const managerRef = useRef<SoundManager | null>(null)
   const [prefs, setPrefs] = useState({ muted: false, volume: 1 })
 
-  // Create the manager once, client-side only.
-  if (managerRef.current === null && typeof window !== 'undefined') {
-    managerRef.current = new SoundManager()
-    setPrefs({ muted: managerRef.current.isMuted(), volume: managerRef.current.getVolume() })
-  }
-
-  // Unlock the AudioContext on the first user gesture (autoplay policy).
-  // The first play() attempt also resumes, but an explicit listener makes the
-  // first click sound reliable on iOS Safari.
+  // Create the manager in an effect (never during render — render must stay
+  // pure so hydration output matches the server). Re-entrant under React
+  // StrictMode's mount → cleanup → remount cycle: the cleanup nulls the ref
+  // and the re-run rebuilds everything.
   useEffect(() => {
-    const manager = managerRef.current
-    if (!manager) return
+    if (!managerRef.current) {
+      managerRef.current = new SoundManager()
+      // Load persisted preferences AFTER hydration: the server rendered the
+      // defaults, so adopting stored values now (post-commit) causes a
+      // one-frame sync instead of a hydration mismatch.
+      managerRef.current.refreshPrefs()
+      setPrefs({
+        muted: managerRef.current.isMuted(),
+        volume: managerRef.current.getVolume(),
+      })
+    }
 
+    // Unlock the AudioContext on the first user gesture (autoplay policy).
+    // The first play() attempt also resumes, but an explicit listener makes the
+    // first click sound reliable on iOS Safari.
+    const manager = managerRef.current
     const unlock = () => {
       void manager.init()
     }
